@@ -69,17 +69,16 @@ static void rehash(hashtable_t *tbl) {
     tbl->capacity = capacity;
 }
 
-void hash_insert(hashtable_t *tbl, char *key, void *value, size_t value_size) {
+void hash_insert(hashtable_t *tbl, char *key, size_t key_size, void *value) {
     if ((tbl->size / (float) tbl->capacity) > LOAD_FACTOR) {
         rehash(tbl);
     }
 
-    size_t len = strlen(key) + 1;
     entry_t entry;
-    entry.key = malloc(len);
-    entry.value = malloc(value_size);
-    strncpy(entry.key, key, len);
-    memcpy(entry.value, value, value_size);
+    entry.key = malloc(key_size + 1);
+    strncpy(entry.key, key, key_size);
+    entry.key[key_size] = '\0';
+    entry.value = value;
 
     insert_entry(tbl->entries, &entry, tbl->capacity);
     tbl->size++;
