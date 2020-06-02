@@ -7,15 +7,17 @@
 #include "json.h"
 
 static regex_t num_re;
+static regex_t hex4_re;
 
 void json_init() {
     const char *num_pattern =
         "^-?(0|[1-9][[:digit:]]*)(\\.[[:digit:]]+)?([eE][+-]?[[:digit:]]+)?$";
     regcomp(&num_re, num_pattern, REG_EXTENDED);
+    regcomp(&hex4_re, "^[0-9a-fA-F]{4}$", REG_EXTENDED);
 }
 
-_Bool is_ws(char c) {
-    switch(c) {
+static _Bool is_ws(char c) {
+    switch (c) {
         case ' ':
         case '\n':
         case '\r':
@@ -24,6 +26,11 @@ _Bool is_ws(char c) {
     }
 
     return 0;
+}
+
+static void failure(char *msg) {
+    fprintf(stderr, msg ? msg : "Invalid JSON\n");
+    exit(1);
 }
 
 static size_t find_end(char *text, size_t start_idx,
@@ -42,12 +49,53 @@ static size_t find_end(char *text, size_t start_idx,
     return end_idx;
 }
 
-static size_t get_string_end(char *s, size_t start_idx, size_t n) {
+static int is_valid_escape(char *s) {
+    char *tmp;
+    switch (s[0]) {
+        case 'u':
+            tmp = malloc(5 * sizeof(char));
+            for (int i = 1; i < 5; i++) {
+                if (s[i] == '\0') {
+                    failure(NULL);
+                }
+                tmp[i - 1] = s[i];
+            }
+
+            tmp[4] = '\0';
+            int ret = 0;
+
+            if (!regexec(&hex4_re, tmp, 0, NULL, 0)) {
+                ret = 6;
+            }
+
+            free(tmp);
+            return ret;
+        case '"':
+        case '\\':
+        case '/':
+        case 'b':
+        case 'f':
+        case 'n':
+        case 'r':
+        case 't':
+            return 2;
+    }
+
+    return 0;
+}
+
+static size_t validate_string(char *s, size_t start_idx, size_t n) {
     size_t end_idx = start_idx;
     while (end_idx < n) {
-        if (s[end_idx] == '\\' && end_idx + 1 < n && s[end_idx + 1] == '"') {
-            end_idx += 2;
-            continue;
+        if (s[end_idx] == '\\') {
+            int ret;
+            if (end_idx + 1 < n
+                    && (ret = is_valid_escape((s + (end_idx + 1))))) {
+                end_idx += ret;
+                continue;
+            } else {
+                failure(NULL);
+            }
         }
 
         if (s[end_idx] == '"') {
@@ -65,8 +113,12 @@ static json_entry_t *get_value(char *s, size_t start_idx,
     size_t value_start = start_idx;
 
     while (value_start < n && s[value_start] != ':') {
+        if (!is_ws(s[value_start])) {
+            failure(NULL);
+        }
         value_start++;
     }
+
     value_start++;
 
     while (value_start < n && is_ws(s[value_start])) {
@@ -83,7 +135,7 @@ static json_entry_t *get_value(char *s, size_t start_idx,
             value_end = find_end(s, value_start, n, '[', ']');
             break;
         case '"':
-            value_end = get_string_end(s, value_start + 1, n) + 1;
+            value_end = validate_string(s, value_start + 1, n) + 1;
             break;
         default:
             c = s[value_end];
@@ -95,8 +147,11 @@ static json_entry_t *get_value(char *s, size_t start_idx,
             break;
     }
 
-    size_t idx = value_end;
+    size_t idx = value_end + 1;
     while (idx < n && s[idx] != ',' && s[idx] != '}') {
+        if (!is_ws(s[idx])) {
+            failure(NULL);
+        }
         idx++;
     }
 
@@ -107,6 +162,7 @@ static json_entry_t *get_value(char *s, size_t start_idx,
 
 json_entry_t *parse_json(char *json, size_t len) {
     json_entry_t *entry = malloc(sizeof(json_entry_t));
+    char *tmp;
     entry->type = UNKNOWN;
 
     switch (json[0]) {
@@ -118,9 +174,13 @@ json_entry_t *parse_json(char *json, size_t len) {
                 size_t key_end;
                 size_t i = 1;
                 while (i < len) {
+                    if (json[i] == '}') {
+                        failure(NULL);
+                    }
+
                     if (json[i] == '"') {
                         key_start = i + 1;
-                        key_end = get_string_end(json, key_start, len);
+                        key_end = validate_string(json, key_start, len);
                         json_entry_t *entry = get_value(json, key_end + 2,
                                 &i, len);
                         hash_insert(obj->tbl, (json + key_start),
@@ -145,13 +205,13 @@ json_entry_t *parse_json(char *json, size_t len) {
                 char *string = malloc(len - 1);
                 strncpy(string, (json + sizeof(char)), len - 2);
                 string[len - 1] = '\0';
-                // TODO: verify validity of string
+                validate_string(json, 1, len);
                 entry->type = STRING;
                 entry->item = string;
             }
             break;
-        default:;
-            char *tmp = malloc(len + 1);
+        default:
+            tmp = malloc(len + 1);
             strncpy(tmp, json, len);
             tmp[len] = '\0';
 
@@ -178,8 +238,7 @@ json_entry_t *parse_json(char *json, size_t len) {
 
     if (entry->type == UNKNOWN) {
         free(entry);
-        fprintf(stderr, "Invalid JSON\n");
-        return NULL;
+        failure(NULL);
     }
 
     return entry;
