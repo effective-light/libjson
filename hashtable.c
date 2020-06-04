@@ -100,7 +100,7 @@ void *hash_search(hashtable_t *tbl, char *key) {
     return NULL;
 }
 
-void hash_destory(hashtable_t *tbl) {
+void hash_destroy(hashtable_t *tbl) {
     for (size_t i = 0; i < tbl->capacity; i++) {
         entry_t *entry = (tbl->entries + i);
         free(entry->key);

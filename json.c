@@ -99,7 +99,7 @@ static size_t validate_string(char *s, size_t start_idx, size_t n) {
         }
 
         if (s[end_idx] == '"') {
-            return end_idx - 1;
+            return end_idx;
         }
 
         end_idx++;
@@ -126,7 +126,7 @@ static json_entry_t *get_value(char *s, size_t start_idx,
             value_end = find_end(s, value_start, n, '[', ']');
             break;
         case '"':
-            value_end = validate_string(s, value_start + 1, n) + 1;
+            value_end = validate_string(s, value_start + 1, n);
             break;
         default:
             c = s[value_end];
@@ -152,10 +152,10 @@ static json_entry_t *get_value(char *s, size_t start_idx,
 
     *end_idx = idx;
 
-    return parse_json((s + value_start), value_end - value_start + 1);
+    return json_parse((s + value_start), value_end - value_start + 1);
 }
 
-json_entry_t *parse_json(char *json, size_t len) {
+json_entry_t *json_parse(char *json, size_t len) {
     json_entry_t *entry = malloc(sizeof(json_entry_t));
     char *tmp;
     entry->type = UNKNOWN;
@@ -171,7 +171,7 @@ json_entry_t *parse_json(char *json, size_t len) {
                     if (json[i] == '"') {
                         key_start = i + 1;
                         key_end = validate_string(json, key_start, len);
-                        size_t value_start = key_end + 2;
+                        size_t value_start = key_end + 1;
                         while (value_start < len && json[value_start] != ':') {
                             if (!is_ws(json[value_start])) {
                                 failure(NULL);
@@ -182,7 +182,7 @@ json_entry_t *parse_json(char *json, size_t len) {
                         json_entry_t *entry = get_value(json, value_start,
                                 &i, len, '}');
                         hash_insert(obj->tbl, (json + key_start),
-                                key_end - key_start + 1, entry);
+                                key_end - key_start, entry);
                     } else if (!is_ws(json[i])) {
                         failure(NULL);
                     }
@@ -225,7 +225,7 @@ json_entry_t *parse_json(char *json, size_t len) {
             break;
         case '"':
             if (json[len - 1] == '"') {
-                char *string = malloc(len - 1);
+                char *string = malloc((len - 1) * sizeof(char));
                 strncpy(string, (json + sizeof(char)), len - 2);
                 string[len - 2] = '\0';
                 validate_string(json, 1, len);
@@ -265,4 +265,49 @@ json_entry_t *parse_json(char *json, size_t len) {
     }
 
     return entry;
+}
+
+void json_exit() {
+    regfree(&num_re);
+    regfree(&hex4_re);
+}
+
+static void _json_destroy(json_entry_t *entry) {
+    json_obj_t *obj;
+    json_array_t *arr;
+
+    switch (entry->type) {
+        case UNKNOWN:
+            failure(NULL);
+            break;
+        case OBJECT:
+            obj = entry->item;
+            hashtable_t *tbl = obj->tbl;
+            for (size_t i = 0; i < tbl->capacity; i++) {
+                entry_t *e = (tbl->entries + i);
+                if (e->key) {
+                    _json_destroy((json_entry_t *) e->value);
+                }
+            }
+            hash_destroy(tbl);
+            free(obj);
+            break;
+        case ARRAY:
+            arr = entry->item;
+            for (size_t i = 0; i < arr->size; i++) {
+                _json_destroy((arr->entries + i));
+            }
+            free(arr->entries);
+            free(arr);
+            break;
+        default:
+            free(entry->item);
+            break;
+    }
+}
+
+void json_destroy(json_entry_t *entry) {
+    _json_destroy(entry);
+    free(entry);
+    entry = NULL;
 }

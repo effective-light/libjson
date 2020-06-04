@@ -17,6 +17,6 @@ hashtable_t *hash_init();
 void hash_insert(hashtable_t *, char *, size_t, void *);
 // search key must be null terminated
 void *hash_search(hashtable_t *, char *);
-void hash_destory(hashtable_t *);
+void hash_destroy(hashtable_t *);
 
 #endif // _HASHTABLE_H_

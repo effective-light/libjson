@@ -28,7 +28,9 @@ typedef struct json_array {
 } json_array_t;
 
 void json_init();
+void json_exit();
 // string must be null terminated
-json_entry_t *parse_json(char *, size_t);
+json_entry_t *json_parse(char *, size_t);
+void json_destroy(json_entry_t *);
 
 #endif // _JSON_H_
