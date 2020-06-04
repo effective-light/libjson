@@ -53,7 +53,7 @@ static int is_valid_escape(char *s) {
     char *tmp;
     switch (s[0]) {
         case 'u':
-            tmp = malloc(5 * sizeof(char));
+            tmp = calloc(5, sizeof(char));
             for (int i = 1; i < 5; i++) {
                 if (s[i] == '\0') {
                     failure(NULL);
@@ -225,16 +225,16 @@ json_entry_t *json_parse(char *json, size_t len) {
             break;
         case '"':
             if (json[len - 1] == '"') {
-                char *string = malloc((len - 1) * sizeof(char));
+                validate_string(json, 1, len);
+                char *string = calloc(len - 1, sizeof(char));
                 strncpy(string, (json + sizeof(char)), len - 2);
                 string[len - 2] = '\0';
-                validate_string(json, 1, len);
                 entry->type = STRING;
                 entry->item = string;
             }
             break;
         default:
-            tmp = malloc(len + 1);
+            tmp = calloc(len + 1, sizeof(char));
             strncpy(tmp, json, len);
             tmp[len] = '\0';
 
@@ -290,7 +290,6 @@ static void _json_destroy(json_entry_t *entry) {
                 }
             }
             hash_destroy(tbl);
-            free(obj);
             break;
         case ARRAY:
             arr = entry->item;
@@ -298,16 +297,88 @@ static void _json_destroy(json_entry_t *entry) {
                 _json_destroy((arr->entries + i));
             }
             free(arr->entries);
-            free(arr);
-            break;
-        default:
-            free(entry->item);
             break;
     }
+
+    free(entry->item);
 }
 
 void json_destroy(json_entry_t *entry) {
     _json_destroy(entry);
     free(entry);
     entry = NULL;
+}
+
+char *json_stringify(json_entry_t *entry) {
+    char *json = NULL;
+    size_t len;
+    switch (entry->type) {
+        case UNKNOWN:
+            failure(NULL);
+            break;
+        case OBJECT:
+            json = calloc(3, sizeof(char));
+            json[0] = '{';
+            json_obj_t *obj = entry->item;
+            hashtable_t *tbl = obj->tbl;
+            len = 2;
+            for (size_t i = 0; i < tbl->capacity; i++) {
+                entry_t *e = (tbl->entries + i);
+                if (e->key) {
+                    size_t key_len = strlen(e->key) + 2;
+                    char *item_json = json_stringify((json_entry_t *)
+                            e->value);
+                    size_t item_len = strlen(item_json) + 2;
+                    json = reallocarray(json, len + key_len + item_len,
+                            sizeof(char));
+                    sprintf((json + (len - 1)), "\"%s\":%s,", e->key,
+                            item_json);
+                    free(item_json);
+                    len += key_len + item_len;
+                }
+            }
+            json[len - 2] = '}';
+            json[len - 1] = '\0';
+            break;
+        case ARRAY:
+            json = calloc(3, sizeof(char));
+            json[0] = '[';
+            json_array_t *arr = entry->item;
+            len = 2;
+            for (size_t i = 0; i < arr->size; i++) {
+                char *item_json = json_stringify((arr->entries + i));
+                size_t item_len = strlen(item_json) + 1;
+                json = reallocarray(json, len + item_len, sizeof(char));
+                sprintf((json + (len - 1)), "%s,", item_json);
+                free(item_json);
+                len += item_len;
+            }
+            json[len - 2] = ']';
+            json[len - 1] = '\0';
+            break;
+        case STRING:
+            json = calloc(strlen((char *) entry->item) + 3, sizeof(char));
+            sprintf(json, "\"%s\"", (char *) entry->item);
+            break;
+        case NUMBER:
+            json = calloc((snprintf(NULL, 0, "%Lf",
+                        *((long double *) entry->item)) + 1), sizeof(char));
+            sprintf(json, "%Lf", *((long double *) entry->item));
+            break;
+        case BOOL:
+            if (*((_Bool *) entry->item)) {
+                json = calloc(5, sizeof(char));
+                strcpy(json, "true");
+            } else {
+                json = calloc(6, sizeof(char));
+                strcpy(json, "false");
+            }
+            break;
+        case NIL:
+            json = calloc(5, sizeof(char));
+            strcpy(json, "null");
+            break;
+    }
+
+    return json;
 }
