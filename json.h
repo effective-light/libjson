@@ -18,9 +18,7 @@ typedef struct json_entry {
     entry_type type;
 } json_entry_t;
 
-typedef struct json_obj {
-    hashtable_t *tbl;
-} json_obj_t;
+typedef hashtable_t json_obj_t;
 
 typedef struct json_array {
     json_entry_t *entries;

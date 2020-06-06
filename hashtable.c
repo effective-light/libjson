@@ -7,22 +7,33 @@
 #define LOAD_FACTOR 0.75f
 #define INITIAL_SIZE 10
 
-static entry_t *init_entries(size_t capacity) {
-    entry_t *entries = calloc(sizeof(entry_t), capacity);
-    for (size_t i = 0; i < capacity; i++) {
-        entry_t *entry = (entries + i);
-        entry->key = NULL;
-        entry->value = NULL;
+static void *safe_calloc(size_t nmemb, size_t size) {
+    void *mem = calloc(nmemb, size);
+
+    if (!mem) {
+        fprintf(stderr, "out of memory!\n");
+        exit(1);
     }
 
-    return entries;
+    return mem;
+}
+
+void *safe_malloc(size_t size) {
+    void *mem = malloc(size);
+
+    if (!mem) {
+        fprintf(stderr, "out of memory!\n");
+        exit(1);
+    }
+
+    return mem;
 }
 
 hashtable_t *hash_init() {
-    hashtable_t *tbl = malloc(sizeof(hashtable_t));
+    hashtable_t *tbl = safe_malloc(sizeof(hashtable_t));
     tbl->capacity = INITIAL_SIZE;
     tbl->size = 0;
-    tbl->entries = init_entries(tbl->capacity);
+    tbl->entries = safe_calloc(tbl->capacity, sizeof(entry_t));
 
     return tbl;
 }
@@ -56,7 +67,7 @@ static void insert_entry(entry_t *entries, entry_t *entry, size_t capacity) {
 
 static void rehash(hashtable_t *tbl) {
     size_t capacity = 2 * tbl->capacity;
-    entry_t *entries = init_entries(capacity);
+    entry_t *entries = safe_calloc(capacity, sizeof(entry_t));
     for (size_t i = 0; i < tbl->capacity; i++) {
         entry_t *entry = (tbl->entries + i);
         if (entry->key) {
@@ -75,7 +86,7 @@ void hash_insert(hashtable_t *tbl, char *key, size_t key_size, void *value) {
     }
 
     entry_t entry;
-    entry.key = malloc(key_size + 1);
+    entry.key = safe_malloc((key_size + 1) * sizeof(char));
     strncpy(entry.key, key, key_size);
     entry.key[key_size] = '\0';
     entry.value = value;

@@ -12,6 +12,8 @@ typedef struct hashtable {
     size_t capacity;
 } hashtable_t;
 
+void *safe_malloc(size_t);
+
 hashtable_t *hash_init();
 // value should be heap allocated
 void hash_insert(hashtable_t *, char *, size_t, void *);
