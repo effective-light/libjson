@@ -21,7 +21,7 @@ static void *safe_calloc(size_t nmemb, size_t size) {
 void *safe_malloc(size_t size) {
     void *mem = malloc(size);
 
-    if (!mem) {
+    if (!mem && size) {
         fprintf(stderr, "out of memory!\n");
         exit(1);
     }
