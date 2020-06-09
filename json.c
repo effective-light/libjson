@@ -94,6 +94,15 @@ static size_t validate_string(char *s, size_t start_idx, size_t n) {
             }
         }
 
+        switch (s[end_idx]) {
+            case '\b':
+            case '\f':
+            case '\n':
+            case '\r':
+            case '\t':
+                return 0;
+        }
+
         if (s[end_idx] == '"') {
             return end_idx;
         }
@@ -115,9 +124,10 @@ static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
     return mem;
 }
 
+static json_entry_t *get_entry(char *, size_t);
 
 static json_entry_t *get_value(char *s, size_t start_idx,
-        size_t *end_idx, size_t n, char end_c) {
+        size_t *end_idx, size_t n, char end_c, _Bool *finished) {
     size_t value_start = start_idx;
 
     while (value_start < n && is_ws(s[value_start])) {
@@ -134,15 +144,16 @@ static json_entry_t *get_value(char *s, size_t start_idx,
             value_end = find_end(s, value_start, n, '[', ']');
             break;
         case '"':
-            value_end = validate_string(s, value_start + 1, n);
-            if (!value_end) {
+            if (!(value_end = validate_string(s, value_start + 1, n))) {
                 return NULL;
             }
             break;
         default:
             c = s[value_end];
             if (value_end + 1 == n && c == end_c) {
-                *end_idx = value_end + 1;
+                if (*finished) {
+                    *end_idx = value_end + 1;
+                }
                 return NULL;
             }
             while (value_end < n && !is_ws(c) && c != ',' && c != end_c) {
@@ -165,22 +176,27 @@ static json_entry_t *get_value(char *s, size_t start_idx,
         return NULL;
     }
 
-
-    json_entry_t *entry = json_parse((s + value_start),
+    json_entry_t *entry = get_entry((s + value_start),
             value_end - value_start + 1);
 
     if (entry) {
         *end_idx = idx;
+        if (s[idx] == ',') {
+            *finished = 0;
+        } else {
+            *finished = 1;
+        }
     }
 
     return entry;
 }
 
-json_entry_t *json_parse(char *json, size_t len) {
+json_entry_t *get_entry(char *json, size_t len) {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     char *tmp;
     entry->type = UNKNOWN;
     _Bool fail = 0;
+    _Bool finished = 1;
 
     switch (json[0]) {
         case '{':
@@ -192,7 +208,7 @@ json_entry_t *json_parse(char *json, size_t len) {
                     if (json[i] == '"') {
                         key_start = i + 1;
                         key_end = validate_string(json, key_start, len);
-                        if (key_end < key_start) {
+                        if (!key_end) {
                             fail = 1;
                             break;
                         }
@@ -210,9 +226,9 @@ json_entry_t *json_parse(char *json, size_t len) {
                         value_start++;
                         size_t old_i = i;
                         json_entry_t *ent = get_value(json, value_start,
-                                &i, len, '}');
+                                &i, len, '}', &finished);
                         if (!ent && i == old_i) {
-                            fail = 2;
+                            fail = 1;
                             break;
                         }
                         if (ent) {
@@ -241,9 +257,11 @@ json_entry_t *json_parse(char *json, size_t len) {
 
                 for (size_t i = 1; i < len; i++) {
                     size_t old_i = i;
-                    json_entry_t *ent = get_value(json, i, &i, len, ']');
+                    json_entry_t *ent = get_value(json, i, &i, len, ']',
+                            &finished);
+
                     if (!ent && i == old_i) {
-                        fail = 2;
+                        fail = 1;
                         break;
                     }
 
@@ -273,6 +291,7 @@ json_entry_t *json_parse(char *json, size_t len) {
         case '"':
             if (json[len - 1] == '"') {
                 if (!validate_string(json, 1, len)) {
+                    fail = 1;
                     break;
                 }
                 char *string = safe_malloc((len - 1) * sizeof(char));
@@ -308,16 +327,32 @@ json_entry_t *json_parse(char *json, size_t len) {
             free(tmp);
     }
 
-
-    if (entry->type == UNKNOWN || fail) {
+    if (entry->type == UNKNOWN || fail || !finished) {
         json_destroy(entry);
-        if (fail == 1) {
-            fprintf(stderr, "Invalid JSON\n");
-        }
         return NULL;
     }
 
     return entry;
+}
+
+static json_entry_t *json_parse_len(char *json, size_t len) {
+    size_t end_idx;
+    _Bool finished = 1;
+    json_entry_t *entry = get_value(json, 0, &end_idx, len, '\0', &finished);
+
+    if (!entry || !finished) {
+        if (entry) {
+            json_destroy(entry);
+        }
+        fprintf(stderr, "Invalid JSON!\n");
+        return NULL;
+    }
+
+    return entry;
+}
+
+json_entry_t *json_parse(char *json) {
+    return json_parse_len(json, strlen(json));
 }
 
 void json_exit() {
