@@ -32,5 +32,9 @@ json_entry_t *json_parse(char *);
 // returned value is heap allocated
 char *json_stringify(json_entry_t *);
 void json_destroy(json_entry_t *);
+json_obj_t *get_json_obj(json_entry_t *);
+json_array_t *get_json_array(json_entry_t *);
+// key must be null terminated
+json_entry_t *get_json_obj_entry(json_obj_t *, char *);
 
 #endif // _JSON_H_

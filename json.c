@@ -476,3 +476,24 @@ char *json_stringify(json_entry_t *entry) {
 
     return json;
 }
+
+static void *get_json_item(json_entry_t *entry, entry_type required_type) {
+    if (entry->type != required_type) {
+        fprintf(stderr, "Incorrect type!\n");
+        return NULL;
+    }
+
+    return entry->item;
+}
+
+json_obj_t *get_json_obj(json_entry_t *entry) {
+    return get_json_item(entry, OBJECT);
+}
+
+json_array_t *get_json_array(json_entry_t *entry) {
+    return get_json_item(entry, ARRAY);
+}
+
+json_entry_t *get_json_obj_entry(json_obj_t *obj, char *key) {
+    return hash_search(obj, key);
+}
