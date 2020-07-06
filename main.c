@@ -24,7 +24,7 @@ int main() {
         json[size] = c;
         size++;
     }
-    json[size] = '\0';
+    json[size - 1] = '\0';
 
     struct timespec start, end;
 

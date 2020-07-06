@@ -97,26 +97,6 @@ static size_t validate_string(char *s, size_t start_idx, size_t n) {
     return 0;
 }
 
-static size_t find_end(char *text, size_t start_idx,
-        size_t n, char start, char end) {
-    size_t end_idx = start_idx;
-    size_t count = 1;
-    while (count && end_idx < n) {
-        char c = text[++end_idx];
-        if (c == '"') {
-            end_idx = validate_string(text, end_idx + 1, n);
-            continue;
-        }
-        if (c == start) {
-            count++;
-        } else if (c == end) {
-            count--;
-        }
-    }
-
-    return end_idx;
-}
-
 static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
     void *mem = realloc(ptr, nmemb * size);
 
@@ -128,203 +108,177 @@ static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
     return mem;
 }
 
-static json_entry_t *get_entry(char *, size_t);
+static json_entry_t *get_entry(char *, size_t, size_t *, size_t);
 
 static json_entry_t *get_value(char *s, size_t start_idx,
-        size_t *end_idx, size_t n, char end_c, _Bool *finished) {
-    size_t value_start = start_idx;
+        size_t *end_idx, size_t n, char end_c) {
 
+    size_t value_start = start_idx;
     while (value_start < n && is_ws(s[value_start])) {
         value_start++;
     }
 
-    size_t value_end = value_start;
-    char c;
-    switch (s[value_start]) {
-        case '{':
-            value_end = find_end(s, value_start, n, '{', '}');
-            break;
-        case '[':
-            value_end = find_end(s, value_start, n, '[', ']');
-            break;
-        case '"':
-            value_end = validate_string(s, value_start + 1, n);
-            break;
-        default:
-            c = s[value_end];
-            if (value_end + 1 == n && c == end_c) {
-                if (*finished) {
-                    *end_idx = value_end + 1;
-                }
-                return NULL;
-            }
-            while (value_end < n && !is_ws(c) && c != ',' && c != end_c) {
-                value_end++;
-                c = s[value_end];
-            }
-            value_end--;
-            break;
-    }
-
-    if (!value_end) {
+    if (s[value_start] == end_c) {
+        *end_idx = start_idx;
         return NULL;
     }
 
-    size_t idx = value_end + 1;
-    while (idx < n && s[idx] != ',' && s[idx] != end_c) {
-        if (!is_ws(s[idx])) {
-            return NULL;
-        }
-        idx++;
-    }
+    json_entry_t *entry = get_entry(s, value_start, end_idx, n);
 
-    if (idx + 1 < n && s[idx] == end_c) {
-        return NULL;
-    }
-
-    json_entry_t *entry = get_entry((s + value_start),
-            value_end - value_start + 1);
-
-    if (entry) {
-        *end_idx = idx;
-        if (s[idx] == ',') {
-            *finished = 0;
-        } else {
-            *finished = 1;
-        }
+    while (*end_idx < n && is_ws(s[*end_idx])) {
+        (*end_idx)++;
     }
 
     return entry;
 }
 
-static json_entry_t *get_entry(char *json, size_t len) {
+static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
+        size_t len) {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
-    char *tmp;
     entry->type = UNKNOWN;
     _Bool fail = 0;
     _Bool finished = 1;
+    char *json = (s + start_idx);
+    *end_idx = start_idx;
 
     switch (json[0]) {
-        case '{':
-            if (json[len - 1] == '}') {
-                json_obj_t *obj = hash_init();
-                size_t key_start;
-                size_t key_end;
-                for (size_t i = 1; i < len; i++) {
-                    if (json[i] == '"') {
-                        key_start = i + 1;
-                        key_end = validate_string(json, key_start, len);
-                        if (!key_end) {
+        case '{':;
+            // TODO: rewrite object parsing
+            /*json_obj_t *obj = hash_init();
+            size_t key_start;
+            size_t key_end;
+            for (size_t i = 1; i < len; i++) {
+                if (json[i] == '"') {
+                    key_start = i + 1;
+                    key_end = validate_string(json, key_start, len);
+                    if (!key_end) {
+                        fail = 1;
+                        break;
+                    }
+                    size_t value_start = key_end + 1;
+                    while (value_start < len && json[value_start] != ':') {
+                        if (!is_ws(json[value_start])) {
                             fail = 1;
-                            break;
-                        }
-                        size_t value_start = key_end + 1;
-                        while (value_start < len && json[value_start] != ':') {
-                            if (!is_ws(json[value_start])) {
-                                fail = 1;
-                                break;
-                            }
-                            value_start++;
-                        }
-                        if (fail) {
                             break;
                         }
                         value_start++;
-                        size_t old_i = i;
-                        json_entry_t *ent = get_value(json, value_start,
-                                &i, len, '}', &finished);
-                        if (!ent && i == old_i) {
-                            fail = 1;
-                            break;
-                        }
-                        hash_insert(obj, (json + key_start),
-                                key_end - key_start, ent);
-                    } else if (!is_ws(json[i])) {
-                        if (json[i] != '}') {
-                            fail = 1;
-                        }
+                    }
+                    if (fail) {
                         break;
                     }
-
-                }
-                entry->type = OBJECT;
-                entry->item = obj;
-            }
-            break;
-        case '[':
-            if (json[len - 1] == ']') {
-                json_array_t *array = safe_malloc(sizeof(json_array_t));
-                array->size = 0;
-                size_t capacity = 10;
-                json_entry_t *entries = safe_malloc(capacity
-                        * sizeof(json_entry_t));
-
-                for (size_t i = 1; i < len; i++) {
+                    value_start++;
                     size_t old_i = i;
-                    json_entry_t *ent = get_value(json, i, &i, len, ']',
-                            &finished);
-
+                    json_entry_t *ent = get_value(json, value_start,
+                            &i, len, '}');
                     if (!ent && i == old_i) {
                         fail = 1;
                         break;
                     }
-
-                    if (ent) {
-                        if (array->size == capacity) {
-                            capacity *= 2;
-                            entries = safe_realloc(entries, capacity,
-                                    sizeof(json_entry_t));
-                        }
-                        memcpy((entries + array->size), ent,
-                                sizeof(json_entry_t));
-                        free(ent);
-                        array->size++;
+                    hash_insert(obj, (json + key_start),
+                            key_end - key_start, ent);
+                } else if (!is_ws(json[i])) {
+                    if (json[i] != '}') {
+                        fail = 1;
                     }
+                    break;
                 }
-
-                if (array->size < capacity) {
-                    entries = safe_realloc(entries, array->size,
-                            sizeof(json_entry_t));
-                }
-
-                array->entries = entries;
-                entry->type = ARRAY;
-                entry->item = array;
             }
+            entry->type = OBJECT;
+            entry->item = obj;*/
+            break;
+        case '[':;
+            json_array_t *array = safe_malloc(sizeof(json_array_t));
+            array->size = 0;
+            size_t capacity = 10;
+            json_entry_t *entries = safe_malloc(capacity
+                    * sizeof(json_entry_t));
+
+            size_t i;
+            for (i = start_idx + 1; i < len; i++) {
+                size_t old_i = i;
+                json_entry_t *ent = get_value(s, i, &i, len, ']');
+
+                if (!ent && i == old_i && !finished) {
+                    fail = 1;
+                    break;
+                }
+
+                if (ent) {
+                    if (array->size == capacity) {
+                        capacity *= 2;
+                        entries = safe_realloc(entries, capacity,
+                                sizeof(json_entry_t));
+                    }
+                    memcpy((entries + array->size), ent, sizeof(json_entry_t));
+                    free(ent);
+                    array->size++;
+                }
+
+                if (i < len && s[i] == ']') {
+                    finished = 1;
+                    i++;
+                    break;
+                } else if (i < len && s[i] == ',') {
+                    finished = 0;
+                } else {
+                    fail = 1;
+                    break;
+                }
+            }
+
+            if (s[i - 1] != ']' || !finished) {
+                fail = 1;
+            }
+
+            *end_idx = i;
+
+            if (array->size < capacity) {
+                entries = safe_realloc(entries, array->size,
+                        sizeof(json_entry_t));
+            }
+
+            array->entries = entries;
+            entry->type = ARRAY;
+            entry->item = array;
             break;
         case '"':
-            if (json[len - 1] == '"') {
-                char *string = safe_malloc((len - 1) * sizeof(char));
-                strncpy(string, (json + sizeof(char)), len - 2);
-                string[len - 2] = '\0';
-                entry->type = STRING;
-                entry->item = string;
-            }
+            *end_idx = validate_string(s, start_idx + 1, len) + 1;
+            size_t n = *end_idx - start_idx;
+            char *string = safe_malloc((n - 1) * sizeof(char));
+            strncpy(string, (json + sizeof(char)), n - 2);
+            string[n - 2] = '\0';
+            entry->type = STRING;
+            entry->item = string;
             break;
         default:
-            tmp = safe_malloc((len + 1) * sizeof(char));
-            strncpy(tmp, json, len);
-            tmp[len] = '\0';
-
-            if (!regexec(&num_re, tmp, 0, NULL, 0)) {
-                long double num = strtold(tmp, NULL);
-                entry->type = NUMBER;
-                entry->item = safe_malloc(sizeof(long double));
-                memcpy(entry->item, &num, sizeof(long double));
-            } else if (!strcmp(tmp, "true")) {
+            if (!strncmp(json, "true", 4)) {
                 entry->type = BOOL;
                 entry->item = safe_malloc(sizeof(_Bool));
                 memset(entry->item, 1, sizeof(_Bool));
-            } else if (!strcmp(tmp, "false")) {
+                *end_idx += 4;
+            } else if (!strncmp(json, "false", 5)) {
                 entry->type = BOOL;
                 entry->item = safe_malloc(sizeof(_Bool));
                 memset(entry->item, 0, sizeof(_Bool));
-            } else if (!strcmp(tmp, "null")) {
+                *end_idx += 5;
+            } else if (!strncmp(json, "null", 4)) {
                 entry->type = NIL;
                 entry->item = NULL;
+                *end_idx += 4;
+            } else {
+                // TODO: rewrite number parsing
+                /*char *tmp = safe_malloc((len + 1) * sizeof(char));
+                strncpy(tmp, json, len);
+                tmp[len] = '\0';
+                if (!regexec(&num_re, tmp, 0, NULL, 0)) {
+                    long double num = strtold(tmp, NULL);
+                    entry->type = NUMBER;
+                    entry->item = safe_malloc(sizeof(long double));
+                    memcpy(entry->item, &num, sizeof(long double));
+                }
+                free(tmp);*/
             }
 
-            free(tmp);
     }
 
     if (entry->type == UNKNOWN || fail || !finished) {
@@ -337,13 +291,9 @@ static json_entry_t *get_entry(char *json, size_t len) {
 
 static json_entry_t *json_parse_len(char *json, size_t len) {
     size_t end_idx;
-    _Bool finished = 1;
-    json_entry_t *entry = get_value(json, 0, &end_idx, len, '\0', &finished);
+    json_entry_t *entry = get_value(json, 0, &end_idx, len, '\0');
 
-    if (!entry || !finished) {
-        if (entry) {
-            json_destroy(entry);
-        }
+    if (!entry) {
         fprintf(stderr, "Invalid JSON!\n");
         return NULL;
     }
