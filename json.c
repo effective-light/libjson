@@ -119,14 +119,18 @@ static json_entry_t *get_value(char *s, size_t start_idx,
     }
 
     if (s[value_start] == end_c) {
-        *end_idx = start_idx;
+        *end_idx = value_start;
         return NULL;
     }
 
     json_entry_t *entry = get_entry(s, value_start, end_idx, n);
 
-    while (*end_idx < n && is_ws(s[*end_idx])) {
-        (*end_idx)++;
+    if (!entry) {
+        *end_idx = start_idx;
+    } else {
+        while (*end_idx < n && is_ws(s[*end_idx])) {
+            (*end_idx)++;
+        }
     }
 
     return entry;
@@ -136,28 +140,29 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
         size_t len) {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     entry->type = UNKNOWN;
-    _Bool fail = 0;
-    _Bool finished = 1;
-    char *json = (s + start_idx);
-    *end_idx = start_idx;
 
-    switch (json[0]) {
+    char *json = (s + start_idx);
+    _Bool fail = 0;
+    char end_c = '\0';
+    *end_idx = start_idx;
+    size_t i;
+
+    switch (s[start_idx]) {
         case '{':;
-            // TODO: rewrite object parsing
-            /*json_obj_t *obj = hash_init();
+            json_obj_t *obj = hash_init();
             size_t key_start;
             size_t key_end;
-            for (size_t i = 1; i < len; i++) {
-                if (json[i] == '"') {
+            for (i = start_idx + 1; i < len; i++) {
+                if (s[i] == '"') {
                     key_start = i + 1;
-                    key_end = validate_string(json, key_start, len);
+                    key_end = validate_string(s, key_start, len);
                     if (!key_end) {
                         fail = 1;
                         break;
                     }
                     size_t value_start = key_end + 1;
-                    while (value_start < len && json[value_start] != ':') {
-                        if (!is_ws(json[value_start])) {
+                    while (value_start < len && s[value_start] != ':') {
+                        if (!is_ws(s[value_start])) {
                             fail = 1;
                             break;
                         }
@@ -167,24 +172,43 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                         break;
                     }
                     value_start++;
-                    size_t old_i = i;
-                    json_entry_t *ent = get_value(json, value_start,
+                    size_t old_i = i - 1;
+                    json_entry_t *ent = get_value(s, value_start,
                             &i, len, '}');
-                    if (!ent && i == old_i) {
-                        fail = 1;
+                    end_c = s[i];
+                    if (!ent) {
+                        if (end_c == ',') {
+                            fail = 1;
+                        }
+                        break;
+                    } else {
+                        hash_insert(obj, (s + key_start), key_end - key_start,
+                                ent);
+                    }
+                    if (end_c == '}') {
+                        end_c = '}';
+                        i++;
                         break;
                     }
-                    hash_insert(obj, (json + key_start),
-                            key_end - key_start, ent);
-                } else if (!is_ws(json[i])) {
-                    if (json[i] != '}') {
-                        fail = 1;
+                } else if (i < len && !is_ws(s[i])) {
+                    fail = 1;
+                    if (end_c != ',' && s[i] == '}') {
+                        end_c = '}';
+                        i++;
+                        fail = 0;
                     }
                     break;
                 }
             }
+
+            if (end_c != '}') {
+                fail = 1;
+            } else {
+                *end_idx = i;
+            }
+
             entry->type = OBJECT;
-            entry->item = obj;*/
+            entry->item = obj;
             break;
         case '[':;
             json_array_t *array = safe_malloc(sizeof(json_array_t));
@@ -193,12 +217,10 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
             json_entry_t *entries = safe_malloc(capacity
                     * sizeof(json_entry_t));
 
-            size_t i;
             for (i = start_idx + 1; i < len; i++) {
-                size_t old_i = i;
                 json_entry_t *ent = get_value(s, i, &i, len, ']');
 
-                if (!ent && i == old_i && !finished) {
+                if (!ent && end_c == ',') {
                     fail = 1;
                     break;
                 }
@@ -215,22 +237,23 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                 }
 
                 if (i < len && s[i] == ']') {
-                    finished = 1;
+                    end_c = ']';
                     i++;
                     break;
                 } else if (i < len && s[i] == ',') {
-                    finished = 0;
+                    end_c = ',';
                 } else {
                     fail = 1;
                     break;
                 }
             }
 
-            if (s[i - 1] != ']' || !finished) {
+            if (end_c != ']') {
                 fail = 1;
+            } else {
+                *end_idx = i;
             }
 
-            *end_idx = i;
 
             if (array->size < capacity) {
                 entries = safe_realloc(entries, array->size,
@@ -281,7 +304,7 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
 
     }
 
-    if (entry->type == UNKNOWN || fail || !finished) {
+    if (entry->type == UNKNOWN || fail) {
         json_destroy(entry);
         return NULL;
     }
