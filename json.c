@@ -7,13 +7,11 @@
 #include "json.h"
 
 static regex_t num_re;
-static regex_t hex4_re;
 
 void json_init() {
     const char *num_pattern =
         "^-?(0|[1-9][[:digit:]]*)(\\.[[:digit:]]+)?([eE][+-]?[[:digit:]]+)?$";
     regcomp(&num_re, num_pattern, REG_EXTENDED);
-    regcomp(&hex4_re, "^[0-9a-fA-F]{4}$", REG_EXTENDED);
 }
 
 static _Bool is_ws(char c) {
@@ -28,28 +26,20 @@ static _Bool is_ws(char c) {
     return 0;
 }
 
+static _Bool is_hex(char c) {
+    return (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+        || (c >= '0' && c <= '9');
+}
+
 static int is_valid_escape(char *s) {
-    char *tmp;
     switch (s[0]) {
         case 'u':
-            tmp = safe_malloc(5 * sizeof(char));
             for (int i = 1; i < 5; i++) {
-                if (s[i] == '\0') {
-                    free(tmp);
+                if (!is_hex(s[i])) {
                     return 0;
                 }
-                tmp[i - 1] = s[i];
             }
-
-            tmp[4] = '\0';
-            int ret = 0;
-
-            if (!regexec(&hex4_re, tmp, 0, NULL, 0)) {
-                ret = 6;
-            }
-
-            free(tmp);
-            return ret;
+            return 6;
         case '"':
         case '\\':
         case '/':
@@ -265,13 +255,16 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
             entry->item = array;
             break;
         case '"':
-            *end_idx = validate_string(s, start_idx + 1, len) + 1;
-            size_t n = *end_idx - start_idx;
-            char *string = safe_malloc((n - 1) * sizeof(char));
-            strncpy(string, (json + sizeof(char)), n - 2);
-            string[n - 2] = '\0';
-            entry->type = STRING;
-            entry->item = string;
+            *end_idx = validate_string(s, start_idx + 1, len);
+            if (*end_idx) {
+                (*end_idx)++;
+                size_t n = *end_idx - start_idx;
+                char *string = safe_malloc((n - 1) * sizeof(char));
+                strncpy(string, (json + sizeof(char)), n - 2);
+                string[n - 2] = '\0';
+                entry->type = STRING;
+                entry->item = string;
+            }
             break;
         default:
             if (!strncmp(json, "true", 4)) {
@@ -312,7 +305,7 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
     return entry;
 }
 
-static json_entry_t *json_parse_len(char *json, size_t len) {
+json_entry_t *json_parse(char *json, size_t len) {
     size_t end_idx;
     json_entry_t *entry = get_value(json, 0, &end_idx, len, '\0');
 
@@ -324,13 +317,8 @@ static json_entry_t *json_parse_len(char *json, size_t len) {
     return entry;
 }
 
-json_entry_t *json_parse(char *json) {
-    return json_parse_len(json, strlen(json));
-}
-
 void json_exit() {
     regfree(&num_re);
-    regfree(&hex4_re);
 }
 
 static void _json_destroy(json_entry_t *entry) {
