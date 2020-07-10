@@ -34,7 +34,7 @@ int main() {
     print_diff("init", start, end);
     
     clock_gettime(CLOCK_MONOTONIC, &start);
-    json_entry_t *ent = json_parse(json, size);
+    json_entry_t *ent = json_parse(json, size - 1);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     if (ent) {

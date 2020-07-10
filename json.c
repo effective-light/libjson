@@ -118,7 +118,14 @@ static json_entry_t *get_value(char *s, size_t start_idx,
     if (!entry) {
         *end_idx = start_idx;
     } else {
-        while (*end_idx < n && is_ws(s[*end_idx])) {
+        while (*end_idx < n) {
+            if (!is_ws(s[*end_idx])) {
+                if (end_c == '\0') {
+                    return NULL;
+                } else {
+                    break;
+                }
+            }
             (*end_idx)++;
         }
     }
