@@ -25,8 +25,6 @@ typedef struct json_array {
     size_t size;
 } json_array_t;
 
-void json_init();
-void json_exit();
 // string must be null terminated, also the returned value is heap allocated
 json_entry_t *json_parse(char *, size_t);
 // returned value is heap allocated

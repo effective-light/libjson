@@ -24,15 +24,10 @@ int main() {
         json[size] = c;
         size++;
     }
-    json[size - 1] = '\0';
+    json[size] = '\0';
 
     struct timespec start, end;
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    json_init();
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    print_diff("init", start, end);
-    
     clock_gettime(CLOCK_MONOTONIC, &start);
     json_entry_t *ent = json_parse(json, size - 1);
     clock_gettime(CLOCK_MONOTONIC, &end);
@@ -53,11 +48,6 @@ int main() {
     }
 
     free(json);
-
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    json_exit();
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    print_diff("exit", start, end);
 
     return 0;
 }

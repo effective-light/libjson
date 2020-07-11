@@ -1,18 +1,11 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <regex.h>
+#include <math.h>
 
 #include "json.h"
-
-static regex_t num_re;
-
-void json_init() {
-    const char *num_pattern =
-        "^-?(0|[1-9][[:digit:]]*)(\\.[[:digit:]]+)?([eE][+-]?[[:digit:]]+)?$";
-    regcomp(&num_re, num_pattern, REG_EXTENDED);
-}
 
 static _Bool is_ws(char c) {
     switch (c) {
@@ -98,6 +91,75 @@ static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
     return mem;
 }
 
+static long double *parse_num(char *s, size_t start_idx, size_t *end_idx,
+        entry_type *type, size_t n) {
+    long long int base = 0, frac = 0, exp_acc = 0;
+    long long int sign = 1, exp_sign = 1;
+    size_t exp = 1;
+    long double *res = NULL;
+
+    if (s[start_idx] == '-') {
+        sign = -1;
+        start_idx++;
+    }
+
+    size_t i = start_idx;
+    if (s[start_idx] > '0' && s[start_idx] <= '9') {
+        for (; i < n && isdigit(s[i]); i++) {
+            if (!isdigit(s[i])) {
+                break;
+            }
+            base = (base * 10) + (s[i] - '0');
+        }
+    } else if (s[start_idx] == '0') {
+        i++;
+    } else {
+        return NULL;
+    }
+
+    if (s[i] == '.') {
+        i++;
+        size_t old = i;
+        for (; i < n && isdigit(s[i]); i++) {
+            frac = (frac * 10) + (s[i] - '0');
+            exp *= 10;
+        }
+
+        if (i == old) {
+            return NULL;
+        }
+    }
+
+    if (s[i] == 'e' || s[i] == 'E') {
+        i++;
+        if (s[i] == '+' || s[i] == '-') {
+            if (s[i] == '-') {
+                exp_sign = -1;
+            }
+            i++;
+        }
+
+        size_t old = i;
+        for (; i < n && isdigit(s[i]); i++) {
+            exp_acc = (exp_acc * 10) + (s[i] - '0');
+        }
+
+        if (i == old) {
+            return NULL;
+        }
+        exp_acc *= exp_sign;
+    }
+
+   *type = NUMBER;
+   *end_idx = i;
+   res = safe_malloc(sizeof(long double));
+   *res = (exp_acc ? pow(10, exp_acc) : 1) * sign * (base
+           + frac / (long double) exp);
+
+   return res;
+
+}
+
 static json_entry_t *get_entry(char *, size_t, size_t *, size_t);
 
 static json_entry_t *get_value(char *s, size_t start_idx,
@@ -121,6 +183,7 @@ static json_entry_t *get_value(char *s, size_t start_idx,
         while (*end_idx < n) {
             if (!is_ws(s[*end_idx])) {
                 if (end_c == '\0') {
+                    json_destroy(entry);
                     return NULL;
                 } else {
                     break;
@@ -289,17 +352,8 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                 entry->item = NULL;
                 *end_idx += 4;
             } else {
-                // TODO: rewrite number parsing
-                /*char *tmp = safe_malloc((len + 1) * sizeof(char));
-                strncpy(tmp, json, len);
-                tmp[len] = '\0';
-                if (!regexec(&num_re, tmp, 0, NULL, 0)) {
-                    long double num = strtold(tmp, NULL);
-                    entry->type = NUMBER;
-                    entry->item = safe_malloc(sizeof(long double));
-                    memcpy(entry->item, &num, sizeof(long double));
-                }
-                free(tmp);*/
+                entry->item = parse_num(s, start_idx, end_idx,
+                        &(entry->type), len);
             }
 
     }
@@ -322,10 +376,6 @@ json_entry_t *json_parse(char *json, size_t len) {
     }
 
     return entry;
-}
-
-void json_exit() {
-    regfree(&num_re);
 }
 
 static void _json_destroy(json_entry_t *entry) {
