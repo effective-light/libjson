@@ -8,6 +8,10 @@
 
 #include "json.h"
 
+static const size_t DEFAULT_NUMBER_SIZE =
+    ((size_t) ceill(logl(powl(2, sizeof(long double) * 8 - 1)) / logl(10.0L)))
+    + 2;
+
 static _Bool is_ws(char c) {
     switch (c) {
         case ' ':
@@ -475,9 +479,11 @@ char *json_stringify(json_entry_t *entry, size_t *n) {
             break;
         case NUMBER:;
             long double ld = *((long double *) entry->item);
-            len = snprintf(NULL, 0, "%.*Lg", LDBL_DIG, ld);
-            json = safe_malloc((len + 1) * sizeof(char));
-            sprintf(json, "%.*Lg", LDBL_DIG, ld);
+            json = safe_malloc((DEFAULT_NUMBER_SIZE + 1) * sizeof(char));
+            len = sprintf(json, "%.*Lg", LDBL_DIG, ld);
+            if (len < DEFAULT_NUMBER_SIZE) {
+                json = safe_realloc(json, len + 1, sizeof(char));
+            }
             break;
         case BOOL:
             if (*((_Bool *) entry->item)) {
