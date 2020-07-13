@@ -4,13 +4,13 @@
 #include "hashtable.h"
 
 typedef enum entry_type {
+    UNKNOWN,
+    NIL,
+    BOOL,
     STRING,
     NUMBER,
-    OBJECT,
     ARRAY,
-    BOOL,
-    NIL,
-    UNKNOWN
+    OBJECT
 } entry_type;
 
 typedef struct json_entry {
@@ -28,7 +28,7 @@ typedef struct json_array {
 // string must be null terminated, also the returned value is heap allocated
 json_entry_t *json_parse(char *, size_t);
 // returned value is heap allocated
-char *json_stringify(json_entry_t *);
+char *json_stringify(json_entry_t *, size_t *);
 void json_destroy(json_entry_t *);
 json_obj_t *get_json_obj(json_entry_t *);
 json_array_t *get_json_array(json_entry_t *);

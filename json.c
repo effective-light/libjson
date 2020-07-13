@@ -1,9 +1,10 @@
 #include <ctype.h>
+#include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <math.h>
 
 #include "json.h"
 
@@ -415,12 +416,10 @@ void json_destroy(json_entry_t *entry) {
     entry = NULL;
 }
 
-char *json_stringify(json_entry_t *entry) {
+char *json_stringify(json_entry_t *entry, size_t *n) {
     char *json = NULL;
-    size_t len;
+    size_t len = 0;
     switch (entry->type) {
-        case UNKNOWN:
-            return json;
         case OBJECT:
             json = safe_malloc(3 * sizeof(char));
             json[0] = '{';
@@ -430,9 +429,10 @@ char *json_stringify(json_entry_t *entry) {
                 entry_t *e = (obj->entries + i);
                 if (e->key) {
                     size_t key_len = strlen(e->key) + 2;
-                    char *item_json = json_stringify((json_entry_t *)
-                            e->value);
-                    size_t item_len = strlen(item_json) + 2;
+                    size_t item_len;
+                    char *item_json = json_stringify((json_entry_t *) e->value,
+                            &item_len);
+                    item_len += 2;
                     json = safe_realloc(json, len + key_len + item_len,
                             sizeof(char));
                     sprintf((json + (len - 1)), "\"%s\":%s,", e->key,
@@ -453,8 +453,9 @@ char *json_stringify(json_entry_t *entry) {
             json_array_t *arr = entry->item;
             len = 2;
             for (size_t i = 0; i < arr->size; i++) {
-                char *item_json = json_stringify((arr->entries + i));
-                size_t item_len = strlen(item_json) + 1;
+                size_t item_len;
+                char *item_json = json_stringify((arr->entries + i), &item_len);
+                item_len++;
                 json = safe_realloc(json, len + item_len, sizeof(char));
                 sprintf((json + (len - 1)), "%s,", item_json);
                 free(item_json);
@@ -468,29 +469,35 @@ char *json_stringify(json_entry_t *entry) {
             json[len] = '\0';
             break;
         case STRING:
-            json = safe_malloc((strlen((char *) entry->item) + 3)
-                    * sizeof(char));
+            len = strlen(entry->item) + 2;
+            json = safe_malloc((len + 1) * sizeof(char));
             sprintf(json, "\"%s\"", (char *) entry->item);
             break;
-        case NUMBER:
-            json = safe_malloc((snprintf(NULL, 0, "%Lf",
-                        *((long double *) entry->item)) + 1) * sizeof(char));
-            sprintf(json, "%Lf", *((long double *) entry->item));
+        case NUMBER:;
+            long double ld = *((long double *) entry->item);
+            len = snprintf(NULL, 0, "%.*Lg", LDBL_DIG, ld);
+            json = safe_malloc((len + 1) * sizeof(char));
+            sprintf(json, "%.*Lg", LDBL_DIG, ld);
             break;
         case BOOL:
             if (*((_Bool *) entry->item)) {
+                len = 4;
                 json = safe_malloc(5 * sizeof(char));
                 strcpy(json, "true");
             } else {
+                len = 5;
                 json = safe_malloc(6 * sizeof(char));
                 strcpy(json, "false");
             }
             break;
         case NIL:
+            len = 4;
             json = safe_malloc(5 * sizeof(char));
             strcpy(json, "null");
             break;
     }
+
+    *n = len;
 
     return json;
 }
