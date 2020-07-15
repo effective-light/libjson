@@ -1,6 +1,8 @@
 #ifndef _JSON_H_
 #define _JSON_H_
 
+#include <stdbool.h>
+
 #include "hashtable.h"
 
 typedef enum entry_type {
@@ -34,5 +36,8 @@ json_obj_t *get_json_obj(json_entry_t *);
 json_array_t *get_json_array(json_entry_t *);
 // key must be null terminated
 json_entry_t *get_json_obj_entry(json_obj_t *, char *);
+bool get_json_bool(json_entry_t *);
+char *get_json_string(json_entry_t *);
+long double get_json_number(json_entry_t *);
 
 #endif // _JSON_H_

@@ -12,7 +12,7 @@ static const size_t DEFAULT_NUMBER_SIZE =
     ((size_t) ceill(logl(powl(2, sizeof(long double) * 8 - 1)) / logl(10.0L)))
     + 2;
 
-static _Bool is_ws(char c) {
+static bool is_ws(char c) {
     switch (c) {
         case ' ':
         case '\n':
@@ -24,7 +24,7 @@ static _Bool is_ws(char c) {
     return 0;
 }
 
-static _Bool is_hex(char c) {
+static bool is_hex(char c) {
     return (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
         || (c >= '0' && c <= '9');
 }
@@ -207,7 +207,7 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
     entry->type = UNKNOWN;
 
     char *json = (s + start_idx);
-    _Bool fail = 0;
+    bool fail = false;
     char end_c = '\0';
     *end_idx = start_idx;
     size_t i;
@@ -222,13 +222,13 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                     key_start = i + 1;
                     key_end = validate_string(s, key_start, len);
                     if (!key_end) {
-                        fail = 1;
+                        fail = true;
                         break;
                     }
                     size_t value_start = key_end + 1;
                     while (value_start < len && s[value_start] != ':') {
                         if (!is_ws(s[value_start])) {
-                            fail = 1;
+                            fail = true;
                             break;
                         }
                         value_start++;
@@ -243,7 +243,7 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                     end_c = s[i];
                     if (!ent) {
                         if (end_c == ',') {
-                            fail = 1;
+                            fail = true;
                         }
                         break;
                     } else {
@@ -256,18 +256,18 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                         break;
                     }
                 } else if (i < len && !is_ws(s[i])) {
-                    fail = 1;
+                    fail = true;
                     if (end_c != ',' && s[i] == '}') {
                         end_c = '}';
                         i++;
-                        fail = 0;
+                        fail = false;
                     }
                     break;
                 }
             }
 
             if (end_c != '}') {
-                fail = 1;
+                fail = true;
             } else {
                 *end_idx = i;
             }
@@ -286,7 +286,7 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                 json_entry_t *ent = get_value(s, i, &i, len, ']');
 
                 if (!ent && end_c == ',') {
-                    fail = 1;
+                    fail = true;
                     break;
                 }
 
@@ -308,13 +308,13 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
                 } else if (i < len && s[i] == ',') {
                     end_c = ',';
                 } else {
-                    fail = 1;
+                    fail = true;
                     break;
                 }
             }
 
             if (end_c != ']') {
-                fail = 1;
+                fail = true;
             } else {
                 *end_idx = i;
             }
@@ -344,13 +344,13 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
         default:
             if (!strncmp(json, "true", 4)) {
                 entry->type = BOOL;
-                entry->item = safe_malloc(sizeof(_Bool));
-                memset(entry->item, 1, sizeof(_Bool));
+                entry->item = safe_malloc(sizeof(bool));
+                memset(entry->item, true, sizeof(bool));
                 *end_idx += 4;
             } else if (!strncmp(json, "false", 5)) {
                 entry->type = BOOL;
-                entry->item = safe_malloc(sizeof(_Bool));
-                memset(entry->item, 0, sizeof(_Bool));
+                entry->item = safe_malloc(sizeof(bool));
+                memset(entry->item, false, sizeof(bool));
                 *end_idx += 5;
             } else if (!strncmp(json, "null", 4)) {
                 entry->type = NIL;
@@ -475,7 +475,7 @@ char *json_stringify(json_entry_t *entry, size_t *n) {
         case STRING:
             len = strlen(entry->item) + 2;
             json = safe_malloc((len + 1) * sizeof(char));
-            sprintf(json, "\"%s\"", (char *) entry->item);
+            sprintf(json, "\"%s\"", entry->item);
             break;
         case NUMBER:;
             long double ld = *((long double *) entry->item);
@@ -486,7 +486,7 @@ char *json_stringify(json_entry_t *entry, size_t *n) {
             }
             break;
         case BOOL:
-            if (*((_Bool *) entry->item)) {
+            if (*((bool *) entry->item)) {
                 len = 4;
                 json = safe_malloc(5 * sizeof(char));
                 strcpy(json, "true");
@@ -527,4 +527,16 @@ json_array_t *get_json_array(json_entry_t *entry) {
 
 json_entry_t *get_json_obj_entry(json_obj_t *obj, char *key) {
     return hash_search(obj, key);
+}
+
+bool get_json_bool(json_entry_t *entry) {
+    return *((bool *) get_json_item(entry, BOOL));
+}
+
+char *get_json_string(json_entry_t *entry) {
+    return get_json_item(entry, STRING);
+}
+
+long double get_json_number(json_entry_t *entry) {
+    return *((long double *) get_json_item(entry, NUMBER));
 }
