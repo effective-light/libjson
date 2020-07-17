@@ -29,8 +29,8 @@ static bool is_hex(char c) {
         || (c >= '0' && c <= '9');
 }
 
-static int is_valid_escape(char *s) {
-    switch (s[0]) {
+static int is_valid_escape(const char *s) {
+    switch (*s) {
         case 'u':
             for (int i = 1; i < 5; i++) {
                 if (!is_hex(s[i])) {
@@ -52,7 +52,7 @@ static int is_valid_escape(char *s) {
     return 0;
 }
 
-static size_t validate_string(char *s, size_t start_idx, size_t n) {
+static size_t validate_string(const char *s, size_t start_idx, size_t n) {
     size_t end_idx = start_idx;
     while (end_idx < n) {
         if (s[end_idx] == '\\') {
@@ -96,7 +96,7 @@ static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
     return mem;
 }
 
-static long double *parse_num(char *s, size_t start_idx, size_t *end_idx,
+static long double *parse_num(const char *s, size_t start_idx, size_t *end_idx,
         entry_type *type, size_t n) {
     long long int base = 0, frac = 0, exp_acc = 0;
     long long int sign = 1, exp_sign = 1;
@@ -165,9 +165,9 @@ static long double *parse_num(char *s, size_t start_idx, size_t *end_idx,
 
 }
 
-static json_entry_t *get_entry(char *, size_t, size_t *, size_t);
+static json_entry_t *get_entry(const char *, size_t, size_t *, size_t);
 
-static json_entry_t *get_value(char *s, size_t start_idx,
+static json_entry_t *get_value(const char *s, size_t start_idx,
         size_t *end_idx, size_t n, char end_c) {
 
     size_t value_start = start_idx;
@@ -201,7 +201,7 @@ static json_entry_t *get_value(char *s, size_t start_idx,
     return entry;
 }
 
-static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
+static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
         size_t len) {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     entry->type = UNKNOWN;
@@ -371,7 +371,7 @@ static json_entry_t *get_entry(char *s, size_t start_idx, size_t *end_idx,
     return entry;
 }
 
-json_entry_t *json_parse(char *json, size_t len) {
+json_entry_t *json_parse(const char *json, size_t len) {
     size_t end_idx;
     json_entry_t *entry = get_value(json, 0, &end_idx, len, '\0');
 
@@ -420,7 +420,7 @@ void json_destroy(json_entry_t *entry) {
     entry = NULL;
 }
 
-char *json_stringify(json_entry_t *entry, size_t *n) {
+char *json_stringify(const json_entry_t *entry, size_t *n) {
     char *json = NULL;
     size_t len = 0;
     switch (entry->type) {
@@ -508,7 +508,8 @@ char *json_stringify(json_entry_t *entry, size_t *n) {
     return json;
 }
 
-static void *get_json_item(json_entry_t *entry, entry_type required_type) {
+static void *get_json_item(const json_entry_t *entry,
+        entry_type required_type) {
     if (entry->type != required_type) {
         fprintf(stderr, "Incorrect type!\n");
         return NULL;
@@ -517,26 +518,26 @@ static void *get_json_item(json_entry_t *entry, entry_type required_type) {
     return entry->item;
 }
 
-json_obj_t *get_json_obj(json_entry_t *entry) {
+json_obj_t *get_json_obj(const json_entry_t *entry) {
     return get_json_item(entry, OBJECT);
 }
 
-json_array_t *get_json_array(json_entry_t *entry) {
+json_array_t *get_json_array(const json_entry_t *entry) {
     return get_json_item(entry, ARRAY);
 }
 
-json_entry_t *get_json_obj_entry(json_obj_t *obj, char *key) {
+json_entry_t *get_json_obj_entry(const json_obj_t *obj, const char *key) {
     return hash_search(obj, key);
 }
 
-bool get_json_bool(json_entry_t *entry) {
+bool get_json_bool(const json_entry_t *entry) {
     return *((bool *) get_json_item(entry, BOOL));
 }
 
-char *get_json_string(json_entry_t *entry) {
+char *get_json_string(const json_entry_t *entry) {
     return get_json_item(entry, STRING);
 }
 
-long double get_json_number(json_entry_t *entry) {
+long double get_json_number(const json_entry_t *entry) {
     return *((long double *) get_json_item(entry, NUMBER));
 }

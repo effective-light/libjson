@@ -39,7 +39,7 @@ hashtable_t *hash_init() {
 }
 
 // djb2
-static size_t hash(char *key, size_t capacity, size_t i) {
+static size_t hash(const char *key, size_t capacity, size_t i) {
     size_t hash = 5381;
     int c;
 
@@ -80,7 +80,8 @@ static void rehash(hashtable_t *tbl) {
     tbl->capacity = capacity;
 }
 
-void hash_insert(hashtable_t *tbl, char *key, size_t key_size, void *value) {
+void hash_insert(hashtable_t *tbl, const char *key, size_t key_size,
+        void *value) {
     if ((tbl->size / (float) tbl->capacity) > LOAD_FACTOR) {
         rehash(tbl);
     }
@@ -96,7 +97,7 @@ void hash_insert(hashtable_t *tbl, char *key, size_t key_size, void *value) {
 }
 
 
-void *hash_search(hashtable_t *tbl, char *key) {
+void *hash_search(const hashtable_t *tbl, const char *key) {
     size_t i = 0;
     do {
         size_t j = hash(key, tbl->capacity, i);
