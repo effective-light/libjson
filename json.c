@@ -12,6 +12,8 @@ static const size_t DEFAULT_NUMBER_SIZE =
     ((size_t) ceill(logl(powl(2, sizeof(long double) * 8 - 1)) / logl(10.0L)))
     + 2;
 
+static size_t n;
+
 static bool is_ws(char c) {
     switch (c) {
         case ' ':
@@ -52,7 +54,7 @@ static int is_valid_escape(const char *s) {
     return 0;
 }
 
-static size_t validate_string(const char *s, size_t start_idx, size_t n) {
+static size_t validate_string(const char *s, size_t start_idx) {
     size_t end_idx = start_idx;
     while (end_idx < n) {
         if (s[end_idx] == '\\') {
@@ -97,7 +99,7 @@ static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
 }
 
 static long double *parse_num(const char *s, size_t start_idx, size_t *end_idx,
-        entry_type *type, size_t n) {
+        entry_type *type) {
     long long int base = 0, frac = 0, exp_acc = 0;
     long long int sign = 1, exp_sign = 1;
     size_t exp = 1;
@@ -165,10 +167,10 @@ static long double *parse_num(const char *s, size_t start_idx, size_t *end_idx,
 
 }
 
-static json_entry_t *get_entry(const char *, size_t, size_t *, size_t);
+static json_entry_t *get_entry(const char *, size_t, size_t *);
 
 static json_entry_t *get_value(const char *s, size_t start_idx,
-        size_t *end_idx, size_t n, char end_c) {
+        size_t *end_idx, char end_c) {
 
     size_t value_start = start_idx;
     while (value_start < n && is_ws(s[value_start])) {
@@ -180,7 +182,7 @@ static json_entry_t *get_value(const char *s, size_t start_idx,
         return NULL;
     }
 
-    json_entry_t *entry = get_entry(s, value_start, end_idx, n);
+    json_entry_t *entry = get_entry(s, value_start, end_idx);
 
     if (!entry) {
         *end_idx = start_idx;
@@ -201,12 +203,13 @@ static json_entry_t *get_value(const char *s, size_t start_idx,
     return entry;
 }
 
-static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
-        size_t len) {
+static json_entry_t *get_entry(const char *s, size_t start_idx,
+        size_t *end_idx) {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     entry->type = UNKNOWN;
 
-    char *json = (s + start_idx);
+    const char *json = (s + start_idx);
+    size_t len = n;
     bool fail = false;
     char end_c = '\0';
     *end_idx = start_idx;
@@ -217,16 +220,16 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
             json_obj_t *obj = hash_init();
             size_t key_start;
             size_t key_end;
-            for (i = start_idx + 1; i < len; i++) {
+            for (i = start_idx + 1; i < n; i++) {
                 if (s[i] == '"') {
                     key_start = i + 1;
-                    key_end = validate_string(s, key_start, len);
+                    key_end = validate_string(s, key_start);
                     if (!key_end) {
                         fail = true;
                         break;
                     }
                     size_t value_start = key_end + 1;
-                    while (value_start < len && s[value_start] != ':') {
+                    while (value_start < n && s[value_start] != ':') {
                         if (!is_ws(s[value_start])) {
                             fail = true;
                             break;
@@ -239,7 +242,7 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
                     value_start++;
                     size_t old_i = i - 1;
                     json_entry_t *ent = get_value(s, value_start,
-                            &i, len, '}');
+                            &i, '}');
                     end_c = s[i];
                     if (!ent) {
                         if (end_c == ',') {
@@ -255,7 +258,7 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
                         i++;
                         break;
                     }
-                } else if (i < len && !is_ws(s[i])) {
+                } else if (i < n && !is_ws(s[i])) {
                     fail = true;
                     if (end_c != ',' && s[i] == '}') {
                         end_c = '}';
@@ -282,8 +285,8 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
             json_entry_t *entries = safe_malloc(capacity
                     * sizeof(json_entry_t));
 
-            for (i = start_idx + 1; i < len; i++) {
-                json_entry_t *ent = get_value(s, i, &i, len, ']');
+            for (i = start_idx + 1; i < n; i++) {
+                json_entry_t *ent = get_value(s, i, &i, ']');
 
                 if (!ent && end_c == ',') {
                     fail = true;
@@ -301,11 +304,11 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
                     array->size++;
                 }
 
-                if (i < len && s[i] == ']') {
+                if (i < n && s[i] == ']') {
                     end_c = ']';
                     i++;
                     break;
-                } else if (i < len && s[i] == ',') {
+                } else if (i < n && s[i] == ',') {
                     end_c = ',';
                 } else {
                     fail = true;
@@ -319,7 +322,6 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
                 *end_idx = i;
             }
 
-
             if (array->size < capacity) {
                 entries = safe_realloc(entries, array->size,
                         sizeof(json_entry_t));
@@ -330,7 +332,7 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
             entry->item = array;
             break;
         case '"':
-            *end_idx = validate_string(s, start_idx + 1, len);
+            *end_idx = validate_string(s, start_idx + 1);
             if (*end_idx) {
                 (*end_idx)++;
                 size_t n = *end_idx - start_idx;
@@ -358,7 +360,7 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
                 *end_idx += 4;
             } else {
                 entry->item = parse_num(s, start_idx, end_idx,
-                        &(entry->type), len);
+                        &(entry->type));
             }
 
     }
@@ -373,7 +375,8 @@ static json_entry_t *get_entry(const char *s, size_t start_idx, size_t *end_idx,
 
 json_entry_t *json_parse(const char *json, size_t len) {
     size_t end_idx;
-    json_entry_t *entry = get_value(json, 0, &end_idx, len, '\0');
+    n = len;
+    json_entry_t *entry = get_value(json, 0, &end_idx, '\0');
 
     if (!entry) {
         fprintf(stderr, "Invalid JSON!\n");
