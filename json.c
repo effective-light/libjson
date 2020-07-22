@@ -12,7 +12,7 @@ static const size_t DEFAULT_NUMBER_SIZE =
     ((size_t) ceill(logl(powl(2, sizeof(long double) * 8 - 1)) / logl(10.0L)))
     + 2;
 
-static size_t n;
+_Thread_local size_t n;
 
 static bool is_ws(char c) {
     switch (c) {
