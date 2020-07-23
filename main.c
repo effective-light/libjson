@@ -29,7 +29,7 @@ int main() {
     struct timespec start, end;
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-    json_entry_t *ent = json_parse(json, size);
+    json_entry_t *ent = json_parse(json);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     if (ent) {

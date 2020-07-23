@@ -12,9 +12,7 @@ static const size_t DEFAULT_NUMBER_SIZE =
     ((size_t) ceill(logl(powl(2, sizeof(long double) * 8 - 1)) / logl(10.0L)))
     + 2;
 
-_Thread_local const char *s;
-_Thread_local size_t idx;
-_Thread_local size_t n;
+static _Thread_local const char *s;
 
 static bool is_ws(char c) {
     switch (c) {
@@ -22,10 +20,10 @@ static bool is_ws(char c) {
         case '\n':
         case '\r':
         case '\t':
-            return 1;
+            return true;
     }
 
-    return 0;
+    return false;
 }
 
 static bool is_hex(char c) {
@@ -33,15 +31,17 @@ static bool is_hex(char c) {
         || (c >= '0' && c <= '9');
 }
 
-static int is_valid_escape(const char *s) {
+static bool validate_escape() {
+    s++;
     switch (*s) {
         case 'u':
             for (int i = 1; i < 5; i++) {
                 if (!is_hex(s[i])) {
-                    return 0;
+                    return false;
                 }
             }
-            return 6;
+            s += 5;
+            return true;
         case '"':
         case '\\':
         case '/':
@@ -50,43 +50,42 @@ static int is_valid_escape(const char *s) {
         case 'n':
         case 'r':
         case 't':
-            return 2;
+            s++;
+            return true;
     }
 
-    return 0;
+    return false;
 }
 
-static size_t validate_string() {
-    size_t end_idx = idx;
-    while (end_idx < n) {
-        if (s[end_idx] == '\\') {
-            int ret;
-            if (end_idx + 1 < n
-                    && (ret = is_valid_escape((s + (end_idx + 1))))) {
-                end_idx += ret;
+static bool validate_string() {
+    s++;
+    while (*s) {
+        if (*s == '\\') {
+            if (validate_escape()) {
                 continue;
             } else {
-                return 0;
+                return false;
             }
         }
 
-        switch (s[end_idx]) {
+        switch (*s) {
             case '\b':
             case '\f':
             case '\n':
             case '\r':
             case '\t':
-                return 0;
+                return false;
         }
 
-        if (s[end_idx] == '"') {
-            return end_idx;
+        if (*s == '"') {
+            s++;
+            return true;
         }
 
-        end_idx++;
+        s++;
     }
 
-    return 0;
+    return false;
 }
 
 static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
@@ -106,60 +105,55 @@ static long double *parse_num(entry_type *type) {
     size_t exp = 1;
     long double *res = NULL;
 
-    if (s[idx] == '-') {
+    if (*s == '-') {
         sign = -1;
-        idx++;
+        s++;
     }
 
-    size_t i = idx;
-    if (s[i] > '0' && s[i] <= '9') {
-        for (; i < n && isdigit(s[i]); i++) {
-            if (!isdigit(s[i])) {
-                break;
-            }
-            base = (base * 10) + (s[i] - '0');
+    if (*s > '0' && *s <= '9') {
+        for (; isdigit(*s); s++) {
+            base = (base * 10) + (*s - '0');
         }
-    } else if (s[idx] == '0') {
-        i++;
+    } else if (*s == '0') {
+        s++;
     } else {
         return NULL;
     }
 
-    if (s[i] == '.') {
-        i++;
-        size_t old = i;
-        for (; i < n && isdigit(s[i]); i++) {
-            frac = (frac * 10) + (s[i] - '0');
+    if (*s == '.') {
+        s++;
+        const char *old = s;
+        for (; isdigit(*s); s++) {
+            frac = (frac * 10) + (*s - '0');
             exp *= 10;
         }
 
-        if (i == old) {
+        if (s == old) {
             return NULL;
         }
     }
 
-    if (s[i] == 'e' || s[i] == 'E') {
-        i++;
-        if (s[i] == '+' || s[i] == '-') {
-            if (s[i] == '-') {
+    if (*s == 'e' || *s == 'E') {
+        s++;
+        if (*s == '+' || *s == '-') {
+            if (*s == '-') {
                 exp_sign = -1;
             }
-            i++;
+            s++;
         }
 
-        size_t old = i;
-        for (; i < n && isdigit(s[i]); i++) {
-            exp_acc = (exp_acc * 10) + (s[i] - '0');
+        const char *old = s;
+        for (; isdigit(*s); s++) {
+            exp_acc = (exp_acc * 10) + (*s - '0');
         }
 
-        if (i == old) {
+        if (s == old) {
             return NULL;
         }
         exp_acc *= exp_sign;
     }
 
    *type = NUMBER;
-   idx = i;
    res = safe_malloc(sizeof(long double));
    *res = (exp_acc ? pow(10, exp_acc) : 1) * sign * (base
            + frac / (long double) exp);
@@ -172,22 +166,19 @@ static json_entry_t *get_entry();
 
 static json_entry_t *get_value(char end_c) {
 
-    size_t start_idx = idx;
-    while (idx < n && is_ws(s[idx])) {
-        idx++;
+    while (is_ws(*s)) {
+        s++;
     }
 
-    if (s[idx] == end_c) {
+    if (*s == end_c) {
         return NULL;
     }
 
     json_entry_t *entry = get_entry();
 
-    if (!entry) {
-        idx = start_idx;
-    } else {
-        while (idx < n) {
-            if (!is_ws(s[idx])) {
+    if (entry) {
+        while (*s) {
+            if (!is_ws(*s)) {
                 if (end_c == '\0') {
                     json_destroy(entry);
                     return NULL;
@@ -195,7 +186,7 @@ static json_entry_t *get_value(char end_c) {
                     break;
                 }
             }
-            idx++;
+            s++;
         }
     }
 
@@ -206,57 +197,53 @@ static json_entry_t *get_entry() {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     entry->type = UNKNOWN;
 
-    const char *json = (s + idx);
     bool fail = false;
     char end_c = '\0';
 
-    switch (s[idx]) {
+    switch (*s) {
         case '{':;
             json_obj_t *obj = hash_init();
-            size_t key_start;
-            size_t key_end;
-            for (idx++; idx < n; idx++) {
-                if (s[idx] == '"') {
-                    idx++;
-                    key_start = idx;
-                    key_end = validate_string();
-                    if (!key_end) {
+            const char *key_start;
+            size_t key_len;
+
+            for (s++; *s; s++) {
+                if (*s == '"') {
+                    key_start = (s + sizeof(char));
+                    if (!validate_string()) {
                         fail = true;
                         break;
                     }
-                    size_t value_start = key_end + 1;
-                    while (value_start < n && s[value_start] != ':') {
-                        if (!is_ws(s[value_start])) {
+                    key_len = s - key_start - sizeof(char);
+                    while (*s && *s != ':') {
+                        if (!is_ws(*s)) {
                             fail = true;
                             break;
                         }
-                        value_start++;
+                        s++;
                     }
                     if (fail) {
                         break;
                     }
-                    value_start++;
-                    idx = value_start;
+                    s++;
                     json_entry_t *ent = get_value('}');
-                    end_c = s[idx];
+                    end_c = *s;
                     if (!ent) {
                         if (end_c == ',') {
                             fail = true;
                         }
                         break;
                     } else {
-                        hash_insert(obj, (s + key_start), key_end - key_start,
-                                ent);
+                        hash_insert(obj, key_start, key_len, ent);
                     }
                     if (end_c == '}') {
-                        idx++;
+                        s++;
                         break;
                     }
-                } else if (idx < n && !is_ws(s[idx])) {
+                } else if (!is_ws(*s)) {
                     fail = true;
-                    if (end_c != ',' && s[idx] == '}') {
+                    if (end_c != ',' && *s == '}') {
                         end_c = '}';
-                        idx++;
+                        s++;
                         fail = false;
                     }
                     break;
@@ -277,7 +264,7 @@ static json_entry_t *get_entry() {
             json_entry_t *entries = safe_malloc(capacity
                     * sizeof(json_entry_t));
 
-            for (idx++; idx < n; idx++) {
+            for (s++; *s; s++) {
                 json_entry_t *ent = get_value(']');
 
                 if (!ent && end_c == ',') {
@@ -296,11 +283,11 @@ static json_entry_t *get_entry() {
                     array->size++;
                 }
 
-                if (idx < n && s[idx] == ']') {
+                if (*s == ']') {
                     end_c = ']';
-                    idx++;
+                    s++;
                     break;
-                } else if (idx < n && s[idx] == ',') {
+                } else if (*s == ',') {
                     end_c = ',';
                 } else {
                     fail = true;
@@ -322,34 +309,31 @@ static json_entry_t *get_entry() {
             entry->item = array;
             break;
         case '"':;
-            size_t start_idx = idx;
-            idx++;
-            idx = validate_string();
-            if (idx) {
-                idx++;
-                size_t n = idx - start_idx;
-                char *string = safe_malloc((n - 1) * sizeof(char));
-                strncpy(string, (json + sizeof(char)), n - 2);
-                string[n - 2] = '\0';
+            const char *start = (s + sizeof(char));
+            if (validate_string()) {
+                size_t n = s - start - sizeof(char);
+                char *string = safe_malloc((n + 1) * sizeof(char));
+                memcpy(string, start, n * sizeof(char));
+                string[n] = '\0';
                 entry->type = STRING;
                 entry->item = string;
             }
             break;
         default:
-            if (!strncmp(json, "true", 4)) {
+            if (!strncmp(s, "true", 4)) {
                 entry->type = BOOL;
                 entry->item = safe_malloc(sizeof(bool));
                 memset(entry->item, true, sizeof(bool));
-                idx += 4;
-            } else if (!strncmp(json, "false", 5)) {
+                s += 4;
+            } else if (!strncmp(s, "false", 5)) {
                 entry->type = BOOL;
                 entry->item = safe_malloc(sizeof(bool));
                 memset(entry->item, false, sizeof(bool));
-                idx += 5;
-            } else if (!strncmp(json, "null", 4)) {
+                s += 5;
+            } else if (!strncmp(s, "null", 4)) {
                 entry->type = NIL;
                 entry->item = NULL;
-                idx += 4;
+                s += 4;
             } else {
                 entry->item = parse_num(&(entry->type));
             }
@@ -364,10 +348,8 @@ static json_entry_t *get_entry() {
     return entry;
 }
 
-json_entry_t *json_parse(const char *json, size_t len) {
+json_entry_t *json_parse(const char *json) {
     s = json;
-    n = len;
-    idx = 0;
     json_entry_t *entry = get_value('\0');
 
     if (!entry) {
