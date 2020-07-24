@@ -8,9 +8,8 @@
 
 #include "json.h"
 
-static const size_t DEFAULT_NUMBER_SIZE =
-    ((size_t) ceill(logl(powl(2, sizeof(long double) * 8 - 1)) / logl(10.0L)))
-    + 2;
+static const size_t DEFAULT_NUMBER_LENGTH =
+    ((size_t) ceill(log10l(powl(2.0L, sizeof(long double) * 8 - 1)))) + 2;
 
 static _Thread_local const char *s;
 
@@ -456,9 +455,16 @@ char *json_stringify(const json_entry_t *entry, size_t *n) {
             break;
         case NUMBER:;
             long double ld = *((long double *) entry->item);
-            json = safe_malloc((DEFAULT_NUMBER_SIZE + 1) * sizeof(char));
-            len = sprintf(json, "%.*Lg", LDBL_DIG, ld);
-            if (len < DEFAULT_NUMBER_SIZE) {
+            long double abs = fabsl(ld);
+            long long int frac = (long long int) ((abs - ((long long int) abs))
+                    * powl(10.0L, LDBL_DIG));
+            json = safe_malloc((DEFAULT_NUMBER_LENGTH + 1) * sizeof(char));
+            if (frac > 0) {
+                len = sprintf(json, "%ld.%ld", (long long int) ld, frac);
+            } else  {
+                len = sprintf(json, "%ld", (long long int) ld);
+            }
+            if (len < DEFAULT_NUMBER_LENGTH) {
                 json = safe_realloc(json, len + 1, sizeof(char));
             }
             break;
