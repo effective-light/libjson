@@ -396,6 +396,37 @@ void json_destroy(json_entry_t *entry) {
     entry = NULL;
 }
 
+static long long int compute_frac(double long ld, size_t *zero_count) {
+    ld = (ld - ((long long int) ld)) + powl(10.0L, -LDBL_DIG);
+    long long int result = 0;
+    size_t level = LDBL_DIG - 1;
+
+    bool pre = true;
+    size_t scale = 1;
+    while (ld && level) {
+        ld = 10.0L * ld;
+        long long int sig = (long long int) ld;
+        if (!pre) {
+            if (!sig) {
+                scale *= 10;
+            } else {
+                scale = 1;
+            }
+        } else {
+            if (sig) {
+                pre = false;
+            } else {
+                (*zero_count)++;
+            }
+        }
+        result = 10LL * result + sig;
+        ld = ld - sig;
+        level--;
+    }
+
+    return result / scale;
+}
+
 char *json_stringify(const json_entry_t *entry, size_t *n) {
     char *json = NULL;
     size_t len = 0;
@@ -455,12 +486,12 @@ char *json_stringify(const json_entry_t *entry, size_t *n) {
             break;
         case NUMBER:;
             long double ld = *((long double *) entry->item);
-            long double abs = fabsl(ld);
-            long long int frac = (long long int) ((abs - ((long long int) abs))
-                    * powl(10.0L, LDBL_DIG));
+            size_t zero_count = 0;
+            long long int frac = compute_frac(fabsl(ld), &zero_count);
             json = safe_malloc((DEFAULT_NUMBER_LENGTH + 1) * sizeof(char));
             if (frac > 0) {
-                len = sprintf(json, "%ld.%ld", (long long int) ld, frac);
+                len = sprintf(json, "%ld.%0.*d%ld", (long long int) ld,
+                        zero_count, 0, frac);
             } else  {
                 len = sprintf(json, "%ld", (long long int) ld);
             }
