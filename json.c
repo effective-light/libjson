@@ -396,35 +396,40 @@ void json_destroy(json_entry_t *entry) {
     entry = NULL;
 }
 
-static long long int compute_frac(double long ld, size_t *zero_count) {
+static char *stringify_num(double long ld, size_t *len) {
+    char *json = safe_malloc((DEFAULT_NUMBER_LENGTH + 1) * sizeof(char));
+    size_t idx = sprintf(json, "%ld", (long long int) ld);
+    ld = fabsl(ld);
     ld = (ld - ((long long int) ld)) + powl(10.0L, -LDBL_DIG);
-    long long int result = 0;
     size_t level = LDBL_DIG - 1;
 
-    bool pre = true;
-    size_t scale = 1;
-    while (ld && level) {
+    json[idx] = '.';
+    size_t end_idx = 0;
+    for (size_t i = idx + 1; ld && level;) {
         ld = 10.0L * ld;
-        long long int sig = (long long int) ld;
-        if (!pre) {
-            if (!sig) {
-                scale *= 10;
-            } else {
-                scale = 1;
-            }
-        } else {
-            if (sig) {
-                pre = false;
-            } else {
-                (*zero_count)++;
-            }
-        }
-        result = 10LL * result + sig;
+        char sig = (char) ld;
+        json[i] = '0' + sig;
         ld = ld - sig;
+        i++;
+        if (sig) {
+            end_idx = i;
+        }
         level--;
     }
 
-    return result / scale;
+    if (end_idx) {
+        idx = end_idx;
+    }
+
+    json[idx] = '\0';
+
+    if (idx < DEFAULT_NUMBER_LENGTH) {
+        json = safe_realloc(json, idx, sizeof(char));
+    }
+
+    *len = idx;
+
+    return json;
 }
 
 char *json_stringify(const json_entry_t *entry, size_t *n) {
@@ -485,19 +490,7 @@ char *json_stringify(const json_entry_t *entry, size_t *n) {
             sprintf(json, "\"%s\"", entry->item);
             break;
         case NUMBER:;
-            long double ld = *((long double *) entry->item);
-            size_t zero_count = 0;
-            long long int frac = compute_frac(fabsl(ld), &zero_count);
-            json = safe_malloc((DEFAULT_NUMBER_LENGTH + 1) * sizeof(char));
-            if (frac > 0) {
-                len = sprintf(json, "%ld.%0.*d%ld", (long long int) ld,
-                        zero_count, 0, frac);
-            } else  {
-                len = sprintf(json, "%ld", (long long int) ld);
-            }
-            if (len < DEFAULT_NUMBER_LENGTH) {
-                json = safe_realloc(json, len + 1, sizeof(char));
-            }
+            json = stringify_num(*((long double *) entry->item), &len);
             break;
         case BOOL:
             if (*((bool *) entry->item)) {
