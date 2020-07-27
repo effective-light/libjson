@@ -1,6 +1,6 @@
 FLAGS = -Wextra -O2 -std=gnu99 -lm
 
-main: main.o hashtable.o json.o
+main: main.o hashtable.o libjson.o
 	gcc ${FLAGS} -o $@ $^
 
 %.o: %.c

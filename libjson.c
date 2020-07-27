@@ -6,7 +6,7 @@
 #include <string.h>
 #include <sys/types.h>
 
-#include "json.h"
+#include "libjson.h"
 
 static const size_t DEFAULT_NUMBER_LENGTH =
     ((size_t) ceill(log10l(powl(2.0L, sizeof(long double) * 8 - 1)))) + 2;

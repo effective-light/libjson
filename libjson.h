@@ -1,5 +1,5 @@
-#ifndef _JSON_H_
-#define _JSON_H_
+#ifndef _LIBJSON_H_
+#define _LIBJSON_H_
 
 #include <stdbool.h>
 
@@ -40,4 +40,4 @@ bool get_json_bool(const json_entry_t *);
 char *get_json_string(const json_entry_t *);
 long double get_json_number(const json_entry_t *);
 
-#endif // _JSON_H_
+#endif // _LIBJSON_H_

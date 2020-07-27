@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "json.h"
+#include "libjson.h"
 
 void print_diff(char *msg, struct timespec start, struct timespec end) {
     printf("%s: %Lf ms\n", msg, ((end.tv_sec - start.tv_sec) * (long) 1e9
