@@ -486,12 +486,14 @@ char *json_stringify(const json_entry_t *entry, size_t *n) {
             break;
     }
 
-    *n = len;
+    if (n) {
+        *n = len;
+    }
 
     return json;
 }
 
-static void *get_json_item(const json_entry_t *entry,
+static void *json_get_item(const json_entry_t *entry,
         entry_type required_type) {
     if (entry->type != required_type) {
         fprintf(stderr, "Incorrect type!\n");
@@ -501,26 +503,26 @@ static void *get_json_item(const json_entry_t *entry,
     return entry->item;
 }
 
-json_obj_t *get_json_obj(const json_entry_t *entry) {
-    return get_json_item(entry, OBJECT);
+json_obj_t *json_get_obj(const json_entry_t *entry) {
+    return json_get_item(entry, OBJECT);
 }
 
-json_array_t *get_json_array(const json_entry_t *entry) {
-    return get_json_item(entry, ARRAY);
+json_array_t *json_get_array(const json_entry_t *entry) {
+    return json_get_item(entry, ARRAY);
 }
 
-json_entry_t *get_json_obj_entry(const json_obj_t *obj, const char *key) {
+json_entry_t *json_get_obj_entry(const json_obj_t *obj, const char *key) {
     return hash_search(obj, key);
 }
 
-bool get_json_bool(const json_entry_t *entry) {
-    return *((bool *) get_json_item(entry, BOOL));
+bool json_get_bool(const json_entry_t *entry) {
+    return *((bool *) json_get_item(entry, BOOL));
 }
 
-char *get_json_string(const json_entry_t *entry) {
-    return get_json_item(entry, STRING);
+char *json_get_string(const json_entry_t *entry) {
+    return json_get_item(entry, STRING);
 }
 
-long double get_json_number(const json_entry_t *entry) {
-    return *((long double *) get_json_item(entry, NUMBER));
+long double json_get_number(const json_entry_t *entry) {
+    return *((long double *) json_get_item(entry, NUMBER));
 }
