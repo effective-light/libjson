@@ -68,11 +68,15 @@ static bool validate_string() {
         }
 
         switch (*s) {
+            case '\a':
             case '\b':
             case '\f':
             case '\n':
             case '\r':
             case '\t':
+            case '\v':
+            case 0x1A:
+            case 0x1B:
                 return false;
         }
 
@@ -152,52 +156,27 @@ static long double *parse_num(entry_type *type) {
         exp_acc *= exp_sign;
     }
 
-   *type = NUMBER;
-   res = safe_malloc(sizeof(long double));
-   *res = (exp_acc ? pow(10, exp_acc) : 1) * sign * (base
-           + frac / (long double) exp);
+    *type = NUMBER;
+    res = safe_malloc(sizeof(long double));
+    *res = (exp_acc ? pow(10, exp_acc) : 1) * sign * (base
+            + frac / (long double) exp);
 
-   return res;
-
+    return res;
 }
 
-static json_entry_t *get_entry();
-
-static json_entry_t *get_value(char end_c) {
+static json_entry_t *get_value(char outer_end) {
 
     while (is_ws(*s)) {
         s++;
     }
 
-    if (*s == end_c) {
+    if (*s == outer_end) {
         return NULL;
     }
 
-    json_entry_t *entry = get_entry();
-
-    if (entry) {
-        while (*s) {
-            if (!is_ws(*s)) {
-                if (end_c == '\0') {
-                    json_destroy(entry);
-                    return NULL;
-                } else {
-                    break;
-                }
-            }
-            s++;
-        }
-    }
-
-    return entry;
-}
-
-static json_entry_t *get_entry() {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     entry->type = UNKNOWN;
-
-    bool fail = false;
-    char end_c = '\0';
+    char inner_end = '\0';
 
     switch (*s) {
         case '{':;
@@ -209,48 +188,38 @@ static json_entry_t *get_entry() {
                 if (*s == '"') {
                     key_start = (s + sizeof(char));
                     if (!validate_string()) {
-                        fail = true;
-                        break;
+                        goto FAIL;
                     }
                     key_len = s - key_start - sizeof(char);
-                    while (*s && *s != ':') {
+                    while (*s != ':') {
                         if (!is_ws(*s)) {
-                            fail = true;
-                            break;
+                            goto FAIL;
                         }
                         s++;
                     }
-                    if (fail) {
-                        break;
-                    }
                     s++;
                     json_entry_t *ent = get_value('}');
-                    end_c = *s;
+                    inner_end = *s;
                     if (!ent) {
-                        if (end_c == ',') {
-                            fail = true;
+                        if (inner_end != '}') {
+                            goto FAIL;
                         }
                         break;
                     } else {
                         hash_insert(obj, key_start, key_len, ent);
                     }
-                    if (end_c == '}') {
+                    if (inner_end == '}') {
                         s++;
                         break;
                     }
                 } else if (!is_ws(*s)) {
-                    fail = true;
-                    if (end_c != ',' && *s == '}') {
-                        end_c = '}';
+                    if (inner_end != ',' && *s == '}') {
                         s++;
-                        fail = false;
+                        break;
+                    } else {
+                        goto FAIL;
                     }
-                    break;
                 }
-            }
-
-            if (end_c != '}') {
-                fail = true;
             }
 
             entry->type = OBJECT;
@@ -266,9 +235,8 @@ static json_entry_t *get_entry() {
             for (s++; *s; s++) {
                 json_entry_t *ent = get_value(']');
 
-                if (!ent && end_c == ',') {
-                    fail = true;
-                    break;
+                if (!ent && inner_end == ',') {
+                    goto FAIL;
                 }
 
                 if (ent) {
@@ -283,19 +251,13 @@ static json_entry_t *get_entry() {
                 }
 
                 if (*s == ']') {
-                    end_c = ']';
                     s++;
                     break;
                 } else if (*s == ',') {
-                    end_c = ',';
+                    inner_end = ',';
                 } else {
-                    fail = true;
-                    break;
+                    goto FAIL;
                 }
-            }
-
-            if (end_c != ']') {
-                fail = true;
             }
 
             if (array->size < capacity) {
@@ -316,6 +278,8 @@ static json_entry_t *get_entry() {
                 string[n] = '\0';
                 entry->type = STRING;
                 entry->item = string;
+            } else {
+                goto FAIL;
             }
             break;
         default:
@@ -336,10 +300,22 @@ static json_entry_t *get_entry() {
             } else {
                 entry->item = parse_num(&(entry->type));
             }
-
     }
 
-    if (entry->type == UNKNOWN || fail) {
+    if (entry->type != UNKNOWN) {
+        while (*s) {
+            if (!is_ws(*s)) {
+                if (!outer_end) {
+                    json_destroy(entry);
+                    return NULL;
+                } else {
+                    break;
+                }
+            }
+            s++;
+        }
+    } else {
+FAIL:
         json_destroy(entry);
         return NULL;
     }
@@ -489,7 +465,7 @@ char *json_stringify(const json_entry_t *entry, size_t *n) {
             json = safe_malloc((len + 1) * sizeof(char));
             sprintf(json, "\"%s\"", entry->item);
             break;
-        case NUMBER:;
+        case NUMBER:
             json = stringify_num(*((long double *) entry->item), &len);
             break;
         case BOOL:

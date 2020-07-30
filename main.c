@@ -34,7 +34,6 @@ int main() {
 
     if (ent) {
         print_diff("parse", start, end);
-        printf("%s\n", json);
         size_t n;
         clock_gettime(CLOCK_MONOTONIC, &start);
         char *json_out = json_stringify(ent, &n);
