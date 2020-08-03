@@ -5,7 +5,7 @@
 
 #include "libjson.h"
 
-void print_diff(char *msg, struct timespec start, struct timespec end) {
+static void print_diff(char *msg, struct timespec start, struct timespec end) {
     printf("%s: %Lf ms\n", msg, ((end.tv_sec - start.tv_sec) * (long) 1e9
                 + (end.tv_nsec - start.tv_nsec)) * (long double) 1e-6);
 }

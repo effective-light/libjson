@@ -32,6 +32,7 @@ json_entry_t *json_parse(const char *);
 // returned value is heap allocated
 char *json_stringify(const json_entry_t *, size_t *);
 void json_destroy(json_entry_t *);
+
 json_obj_t *json_get_obj(const json_entry_t *);
 json_array_t *json_get_array(const json_entry_t *);
 // key must be null terminated
@@ -39,5 +40,11 @@ json_entry_t *json_get_obj_entry(const json_obj_t *, const char *);
 bool json_get_bool(const json_entry_t *);
 char *json_get_string(const json_entry_t *);
 long double json_get_number(const json_entry_t *);
+
+json_entry_t *json_create_string(char *, size_t);
+json_entry_t *json_create_number(long double);
+json_entry_t *json_create_bool(bool);
+
+void json_nullify_entry(json_entry_t *);
 
 #endif // _LIBJSON_H_

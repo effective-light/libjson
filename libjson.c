@@ -526,3 +526,38 @@ char *json_get_string(const json_entry_t *entry) {
 long double json_get_number(const json_entry_t *entry) {
     return *((long double *) json_get_item(entry, NUMBER));
 }
+
+json_entry_t *json_create_generic(entry_type type, size_t size) {
+    json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
+    entry->type = type;
+    entry->item = safe_malloc(size);
+
+    return entry;
+}
+
+json_entry_t *json_create_string(char *str, size_t len) {
+    json_entry_t *entry = json_create_generic(STRING, len * sizeof(char));
+    memcpy(entry->item, str, len + 1);
+
+    return entry;
+}
+
+json_entry_t *json_create_number(long double ld) {
+    json_entry_t *entry = json_create_generic(NUMBER, sizeof(long double));
+    memcpy(entry->item, &ld, sizeof(long double));
+
+    return entry;
+}
+
+json_entry_t *json_create_bool(bool b) {
+    json_entry_t *entry = json_create_generic(BOOL, sizeof(bool));
+    memcpy(entry->item, &b, sizeof(bool));
+
+    return entry;
+}
+
+void json_nullify_entry(json_entry_t *entry) {
+    entry->type = NIL;
+    json_destroy(entry->item);
+    entry->item = NULL;
+}
