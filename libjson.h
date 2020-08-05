@@ -41,9 +41,12 @@ bool json_get_bool(const json_entry_t *);
 char *json_get_string(const json_entry_t *);
 long double json_get_number(const json_entry_t *);
 
+json_entry_t *json_create_obj();
+json_entry_t *json_create_array();
 json_entry_t *json_create_string(char *, size_t);
 json_entry_t *json_create_number(long double);
 json_entry_t *json_create_bool(bool);
+json_entry_t *json_create_null();
 
 void json_nullify_entry(json_entry_t *);
 

@@ -535,6 +535,25 @@ json_entry_t *json_create_generic(entry_type type, size_t size) {
     return entry;
 }
 
+json_entry_t *json_create_obj() {
+    json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
+    entry->type = OBJECT;
+    entry->item = hash_init();
+
+    return entry;
+}
+
+json_entry_t *json_create_array() {
+    json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
+    entry->type = ARRAY;
+    json_array_t *array = safe_malloc(sizeof(json_array_t));
+    array->entries = NULL;
+    array->size = 0;
+    entry->item = array;
+
+    return entry;
+}
+
 json_entry_t *json_create_string(char *str, size_t len) {
     json_entry_t *entry = json_create_generic(STRING, len * sizeof(char));
     memcpy(entry->item, str, len + 1);
@@ -554,6 +573,13 @@ json_entry_t *json_create_bool(bool b) {
     memcpy(entry->item, &b, sizeof(bool));
 
     return entry;
+}
+
+json_entry_t *json_create_null() {
+    json_entry_t *entry = json_create_generic(NIL, 0);
+    entry->item = NULL;
+
+    return NULL;
 }
 
 void json_nullify_entry(json_entry_t *entry) {
