@@ -48,6 +48,8 @@ json_entry_t *json_create_number(long double);
 json_entry_t *json_create_bool(bool);
 json_entry_t *json_create_null();
 
+void json_obj_insert(json_obj_t *, char *, size_t, json_entry_t *);
+void json_array_insert(json_array_t *, json_entry_t *);
 void json_nullify_entry(json_entry_t *);
 
 #endif // _LIBJSON_H_

@@ -582,6 +582,19 @@ json_entry_t *json_create_null() {
     return NULL;
 }
 
+void json_obj_insert(json_obj_t *obj, char *key, size_t len,
+        json_entry_t *entry) {
+    hash_insert(obj, key, len, entry);
+}
+
+void json_array_insert(json_array_t *array, json_entry_t *entry) {
+    array->entries = safe_realloc(array->entries, ++(array->size),
+            sizeof(json_entry_t));
+    memcpy((array->entries + array->size - 1), entry, sizeof(json_entry_t));
+
+    free(entry);
+}
+
 void json_nullify_entry(json_entry_t *entry) {
     entry->type = NIL;
     json_destroy(entry->item);
