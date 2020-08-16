@@ -595,6 +595,21 @@ void json_array_insert(json_array_t *array, json_entry_t *entry) {
     free(entry);
 }
 
+void json_array_remove(json_array_t *array, size_t index) {
+    if (index >= array->size) {
+        fprintf(stderr, "json: array out of bounds");
+        return;
+    }
+
+    if (index + 1 != array->size) {
+        memcpy((array->entries + index), (array->entries + index + 1),
+                (array->size - index + 1) * sizeof(json_entry_t));
+    }
+
+    array->entries = safe_realloc(array->entries, --(array->size),
+            sizeof(json_entry_t));
+}
+
 void json_nullify_entry(json_entry_t *entry) {
     entry->type = NIL;
     json_destroy(entry->item);
