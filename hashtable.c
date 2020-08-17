@@ -29,6 +29,17 @@ void *safe_malloc(size_t size) {
     return mem;
 }
 
+void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
+    void *mem = realloc(ptr, nmemb * size);
+
+    if (!mem && nmemb) {
+        fprintf(stderr, "out of memory!\n");
+        exit(1);
+    }
+
+    return mem;
+}
+
 hashtable_t *hash_init() {
     hashtable_t *tbl = safe_malloc(sizeof(hashtable_t));
     tbl->capacity = INITIAL_SIZE;
@@ -55,7 +66,8 @@ static void insert_entry(entry_t *entries, entry_t *entry, size_t capacity) {
     do {
         size_t j = hash(entry->key, capacity, i);
         entry_t *cur_entry = (entries + j);
-        if (!cur_entry->key) {
+        if (!cur_entry->key || !(*(cur_entry->key))) {
+            free(cur_entry->key);
             cur_entry->key = entry->key;
             cur_entry->value = entry->value;
             break;
@@ -96,20 +108,32 @@ void hash_insert(hashtable_t *tbl, const char *key, size_t key_size,
     tbl->size++;
 }
 
-
-void *hash_search(const hashtable_t *tbl, const char *key) {
+static entry_t *_hash_search(const hashtable_t *tbl, const char *key) {
     size_t i = 0;
     do {
         size_t j = hash(key, tbl->capacity, i);
         entry_t *entry = (tbl->entries + j);
         if (entry->key && !strcmp(entry->key, key)) {
-            return entry->value;
+            return entry;
         }
 
         i++;
     } while (i < tbl->capacity);
 
     return NULL;
+}
+
+void *hash_search(const hashtable_t *tbl, const char *key) {
+    return _hash_search(tbl, key)->value;
+}
+
+void *hash_remove(hashtable_t *tbl, const char *key) {
+    entry_t *entry = _hash_search(tbl, key);
+    entry->key = safe_realloc(entry->key, 1, sizeof(char));
+    entry->key = '\0';
+    void *tmp = entry->value;
+    entry->value = NULL;
+    return tmp;
 }
 
 void hash_destroy(hashtable_t *tbl) {

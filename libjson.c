@@ -91,17 +91,6 @@ static bool validate_string() {
     return false;
 }
 
-static void *safe_realloc(void *ptr, size_t nmemb, size_t size) {
-    void *mem = realloc(ptr, nmemb * size);
-
-    if (!mem && nmemb) {
-        fprintf(stderr, "out of memory!\n");
-        exit(1);
-    }
-
-    return mem;
-}
-
 static long double *parse_num(entry_type *type) {
     long long int base = 0, frac = 0, exp_acc = 0;
     long long int sign = 1, exp_sign = 1;
@@ -585,6 +574,10 @@ json_entry_t *json_create_null() {
 void json_obj_insert(json_obj_t *obj, char *key, size_t len,
         json_entry_t *entry) {
     hash_insert(obj, key, len, entry);
+}
+
+void json_obj_remove(json_obj_t *obj, char *key) {
+    free(hash_remove(obj, key));
 }
 
 void json_array_insert(json_array_t *array, json_entry_t *entry) {
