@@ -25,6 +25,7 @@ typedef hashtable_t json_obj_t;
 typedef struct json_array {
     json_entry_t *entries;
     size_t size;
+    size_t capacity;
 } json_array_t;
 
 // string must be null terminated, also the returned value is heap allocated

@@ -215,11 +215,9 @@ static json_entry_t *get_value(char outer_end) {
             entry->item = obj;
             break;
         case '[':;
-            json_array_t *array = safe_malloc(sizeof(json_array_t));
-            array->size = 0;
-            size_t capacity = 10;
-            json_entry_t *entries = safe_malloc(capacity
-                    * sizeof(json_entry_t));
+            free(entry);
+            entry = json_create_array();
+            json_array_t *array = (json_array_t *) entry->item;
 
             for (s++; *s; s++) {
                 json_entry_t *ent = get_value(']');
@@ -229,14 +227,7 @@ static json_entry_t *get_value(char outer_end) {
                 }
 
                 if (ent) {
-                    if (array->size == capacity) {
-                        capacity *= 2;
-                        entries = safe_realloc(entries, capacity,
-                                sizeof(json_entry_t));
-                    }
-                    memcpy((entries + array->size), ent, sizeof(json_entry_t));
-                    free(ent);
-                    array->size++;
+                    json_array_insert(array, ent);
                 }
 
                 if (*s == ']') {
@@ -248,15 +239,6 @@ static json_entry_t *get_value(char outer_end) {
                     goto FAIL;
                 }
             }
-
-            if (array->size < capacity) {
-                entries = safe_realloc(entries, array->size,
-                        sizeof(json_entry_t));
-            }
-
-            array->entries = entries;
-            entry->type = ARRAY;
-            entry->item = array;
             break;
         case '"':;
             const char *start = (s + sizeof(char));
@@ -536,7 +518,8 @@ json_entry_t *json_create_array() {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     entry->type = ARRAY;
     json_array_t *array = safe_malloc(sizeof(json_array_t));
-    array->entries = NULL;
+    array->capacity = 10;
+    array->entries = safe_malloc(array->capacity * sizeof(json_entry_t));
     array->size = 0;
     entry->item = array;
 
@@ -581,10 +564,15 @@ void json_obj_remove(json_obj_t *obj, char *key) {
 }
 
 void json_array_insert(json_array_t *array, json_entry_t *entry) {
-    array->entries = safe_realloc(array->entries, ++(array->size),
-            sizeof(json_entry_t));
-    memcpy((array->entries + array->size - 1), entry, sizeof(json_entry_t));
+    if (array->size == array->capacity) {
+        array->capacity *= 2;
+        array->entries = safe_realloc(array->entries, array->capacity,
+                sizeof(json_entry_t));
+    }
 
+    memcpy((array->entries + array->size), entry, sizeof(json_entry_t));
+
+    array->size++;
     free(entry);
 }
 
@@ -599,8 +587,7 @@ void json_array_remove(json_array_t *array, size_t index) {
                 (array->size - index + 1) * sizeof(json_entry_t));
     }
 
-    array->entries = safe_realloc(array->entries, --(array->size),
-            sizeof(json_entry_t));
+    array->size--;
 }
 
 void json_nullify_entry(json_entry_t *entry) {
