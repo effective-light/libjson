@@ -44,14 +44,14 @@ long double json_get_number(const json_entry_t *);
 
 json_entry_t *json_create_obj();
 json_entry_t *json_create_array();
-json_entry_t *json_create_string(char *, size_t);
+json_entry_t *json_create_string(const char *, size_t);
 json_entry_t *json_create_number(long double);
 json_entry_t *json_create_bool(bool);
 json_entry_t *json_create_null();
 
-void json_obj_insert(json_obj_t *, char *, size_t, json_entry_t *);
-void json_obj_remove(json_obj_t *, char *);
-void json_array_insert(json_array_t *, json_entry_t *);
+void json_obj_insert(json_obj_t *, const char *, size_t, json_entry_t *);
+void json_obj_remove(json_obj_t *, const char *);
+void json_array_insert(json_array_t *, const json_entry_t *);
 void json_array_remove(json_array_t *, size_t);
 void json_nullify_entry(json_entry_t *);
 

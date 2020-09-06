@@ -1,4 +1,4 @@
-FLAGS = -Wextra -O2 -std=gnu99 -lm
+FLAGS = -Wextra -O2 -std=gnu99 -lm -fpic
 
 main: main.o hashtable.o libjson.o
 	gcc ${FLAGS} -o $@ $^
@@ -6,5 +6,12 @@ main: main.o hashtable.o libjson.o
 %.o: %.c
 	gcc ${FLAGS} -c $<
 
+install: libjson.o hashtable.o
+	gcc ${FLAGS} -shared -o libjson.so $<
+	cp libjson.so /usr/lib
+
+uninstall:
+	rm -f /usr/lib/libjson.so
+
 clean:
-	rm -f *.o main
+	rm -f *.so *.o main

@@ -163,13 +163,13 @@ static json_entry_t *get_value(char outer_end) {
         return NULL;
     }
 
-    json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
-    entry->type = UNKNOWN;
+    json_entry_t *entry = NULL;
     char inner_end = '\0';
 
     switch (*s) {
-        case '{':;
-            json_obj_t *obj = hash_init();
+        case '{':
+            entry = json_create_obj();
+            json_obj_t *obj = entry->item;
             const char *key_start;
             size_t key_len;
 
@@ -195,7 +195,7 @@ static json_entry_t *get_value(char outer_end) {
                         }
                         break;
                     } else {
-                        hash_insert(obj, key_start, key_len, ent);
+                        json_obj_insert(obj, key_start, key_len, ent);
                     }
                     if (inner_end == '}') {
                         s++;
@@ -210,14 +210,10 @@ static json_entry_t *get_value(char outer_end) {
                     }
                 }
             }
-
-            entry->type = OBJECT;
-            entry->item = obj;
             break;
-        case '[':;
-            free(entry);
+        case '[':
             entry = json_create_array();
-            json_array_t *array = (json_array_t *) entry->item;
+            json_array_t *array = entry->item;
 
             for (s++; *s; s++) {
                 json_entry_t *ent = get_value(']');
@@ -228,6 +224,7 @@ static json_entry_t *get_value(char outer_end) {
 
                 if (ent) {
                     json_array_insert(array, ent);
+                    free(ent);
                 }
 
                 if (*s == ']') {
@@ -243,17 +240,14 @@ static json_entry_t *get_value(char outer_end) {
         case '"':;
             const char *start = (s + sizeof(char));
             if (validate_string()) {
-                size_t n = s - start - sizeof(char);
-                char *string = safe_malloc((n + 1) * sizeof(char));
-                memcpy(string, start, n * sizeof(char));
-                string[n] = '\0';
-                entry->type = STRING;
-                entry->item = string;
+                entry = json_create_string(start, s - start - sizeof(char));
             } else {
                 goto FAIL;
             }
             break;
         default:
+            entry = safe_malloc(sizeof(json_entry_t));
+            entry->type = UNKNOWN;
             if (!strncmp(s, "true", 4)) {
                 entry->type = BOOL;
                 entry->item = safe_malloc(sizeof(bool));
@@ -526,9 +520,11 @@ json_entry_t *json_create_array() {
     return entry;
 }
 
-json_entry_t *json_create_string(char *str, size_t len) {
-    json_entry_t *entry = json_create_generic(STRING, len * sizeof(char));
-    memcpy(entry->item, str, len + 1);
+json_entry_t *json_create_string(const char *str, size_t len) {
+    json_entry_t *entry = json_create_generic(STRING, (len + 1) * sizeof(char));
+    char *new_str = entry->item;
+    memcpy(new_str, str, len);
+    new_str[len] = '\0';
 
     return entry;
 }
@@ -554,16 +550,16 @@ json_entry_t *json_create_null() {
     return NULL;
 }
 
-void json_obj_insert(json_obj_t *obj, char *key, size_t len,
+void json_obj_insert(json_obj_t *obj, const char *key, size_t len,
         json_entry_t *entry) {
     hash_insert(obj, key, len, entry);
 }
 
-void json_obj_remove(json_obj_t *obj, char *key) {
+void json_obj_remove(json_obj_t *obj, const char *key) {
     free(hash_remove(obj, key));
 }
 
-void json_array_insert(json_array_t *array, json_entry_t *entry) {
+void json_array_insert(json_array_t *array, const json_entry_t *entry) {
     if (array->size == array->capacity) {
         array->capacity *= 2;
         array->entries = safe_realloc(array->entries, array->capacity,
@@ -573,7 +569,6 @@ void json_array_insert(json_array_t *array, json_entry_t *entry) {
     memcpy((array->entries + array->size), entry, sizeof(json_entry_t));
 
     array->size++;
-    free(entry);
 }
 
 void json_array_remove(json_array_t *array, size_t index) {
