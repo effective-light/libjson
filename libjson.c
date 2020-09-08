@@ -91,7 +91,7 @@ static bool validate_string() {
     return false;
 }
 
-static long double *parse_num(entry_type *type) {
+static long double *parse_num() {
     long long int base = 0, frac = 0, exp_acc = 0;
     long long int sign = 1, exp_sign = 1;
     size_t exp = 1;
@@ -145,12 +145,19 @@ static long double *parse_num(entry_type *type) {
         exp_acc *= exp_sign;
     }
 
-    *type = NUMBER;
     res = safe_malloc(sizeof(long double));
     *res = (exp_acc ? pow(10, exp_acc) : 1) * sign * (base
             + frac / (long double) exp);
 
     return res;
+}
+
+static json_entry_t *json_create_generic(entry_type type, size_t size) {
+    json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
+    entry->type = type;
+    entry->item = safe_malloc(size);
+
+    return entry;
 }
 
 static json_entry_t *get_value(char outer_end) {
@@ -246,46 +253,42 @@ static json_entry_t *get_value(char outer_end) {
             }
             break;
         default:
-            entry = safe_malloc(sizeof(json_entry_t));
-            entry->type = UNKNOWN;
             if (!strncmp(s, "true", 4)) {
-                entry->type = BOOL;
-                entry->item = safe_malloc(sizeof(bool));
-                memset(entry->item, true, sizeof(bool));
+                entry = json_create_bool(true);
                 s += 4;
             } else if (!strncmp(s, "false", 5)) {
-                entry->type = BOOL;
-                entry->item = safe_malloc(sizeof(bool));
-                memset(entry->item, false, sizeof(bool));
+                entry = json_create_bool(false);
                 s += 5;
             } else if (!strncmp(s, "null", 4)) {
-                entry->type = NIL;
-                entry->item = NULL;
+                entry = json_create_null();
                 s += 4;
             } else {
-                entry->item = parse_num(&(entry->type));
+                long double *ld = parse_num();
+                if (ld) {
+                    entry = json_create_generic(NUMBER, sizeof(long double));
+                    entry->item = ld;
+                }
             }
     }
 
-    if (entry->type != UNKNOWN) {
+    if (entry) {
         while (*s) {
             if (!is_ws(*s)) {
                 if (!outer_end) {
-                    json_destroy(entry);
-                    return NULL;
+                    goto FAIL;
                 } else {
                     break;
                 }
             }
             s++;
         }
-    } else {
-FAIL:
-        json_destroy(entry);
-        return NULL;
     }
 
     return entry;
+
+FAIL:
+    json_destroy(entry);
+    return NULL;
 }
 
 json_entry_t *json_parse(const char *json) {
@@ -339,7 +342,7 @@ void json_destroy(json_entry_t *entry) {
 
 static char *stringify_num(double long ld, size_t *len) {
     char *json = safe_malloc((DEFAULT_NUMBER_LENGTH + 1) * sizeof(char));
-    size_t idx = sprintf(json, "%ld", (long long int) ld);
+    size_t idx = sprintf(json, "%lld", (long long int) ld);
     ld = fabsl(ld);
     ld = (ld - ((long long int) ld)) + powl(10.0L, -LDBL_DIG);
     size_t level = LDBL_DIG - 1;
@@ -490,14 +493,6 @@ char *json_get_string(const json_entry_t *entry) {
 
 long double json_get_number(const json_entry_t *entry) {
     return *((long double *) json_get_item(entry, NUMBER));
-}
-
-json_entry_t *json_create_generic(entry_type type, size_t size) {
-    json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
-    entry->type = type;
-    entry->item = safe_malloc(size);
-
-    return entry;
 }
 
 json_entry_t *json_create_obj() {
