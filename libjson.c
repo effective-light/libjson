@@ -8,6 +8,8 @@
 
 #include "libjson.h"
 
+#define SHRINK_FACTOR 0.30f
+
 static const size_t DEFAULT_NUMBER_LENGTH =
     ((size_t) ceill(log10l(powl(2.0L, sizeof(long double) * 8 - 1)))) + 2;
 
@@ -507,7 +509,7 @@ json_entry_t *json_create_array() {
     json_entry_t *entry = safe_malloc(sizeof(json_entry_t));
     entry->type = ARRAY;
     json_array_t *array = safe_malloc(sizeof(json_array_t));
-    array->capacity = 10;
+    array->capacity = 1;
     array->entries = safe_malloc(array->capacity * sizeof(json_entry_t));
     array->size = 0;
     entry->item = array;
@@ -578,6 +580,12 @@ void json_array_remove(json_array_t *array, size_t index) {
     }
 
     array->size--;
+    if (array->size > 1
+            && (array->size / (float) array->capacity) < SHRINK_FACTOR) {
+        array->capacity /= 2;
+        array->entries = safe_realloc(array->entries, array->capacity,
+                sizeof(json_entry_t));
+    }
 }
 
 void json_nullify_entry(json_entry_t *entry) {
