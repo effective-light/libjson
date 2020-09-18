@@ -204,7 +204,7 @@ static json_entry_t *get_value(char outer_end) {
                         }
                         break;
                     } else {
-                        json_obj_insert(obj, key_start, key_len, ent);
+                        json_insert_obj_entry(obj, key_start, key_len, ent);
                     }
                     if (inner_end == '}') {
                         s++;
@@ -232,7 +232,7 @@ static json_entry_t *get_value(char outer_end) {
                 }
 
                 if (ent) {
-                    json_array_insert(array, ent);
+                    json_insert_array_entry(array, ent);
                     free(ent);
                 }
 
@@ -547,16 +547,16 @@ json_entry_t *json_create_null() {
     return NULL;
 }
 
-void json_obj_insert(json_obj_t *obj, const char *key, size_t len,
+void json_insert_obj_entry(json_obj_t *obj, const char *key, size_t len,
         json_entry_t *entry) {
     hash_insert(obj, key, len, entry);
 }
 
-void json_obj_remove(json_obj_t *obj, const char *key) {
+void json_remove_obj_entry(json_obj_t *obj, const char *key) {
     free(hash_remove(obj, key));
 }
 
-void json_array_insert(json_array_t *array, const json_entry_t *entry) {
+void json_insert_array_entry(json_array_t *array, const json_entry_t *entry) {
     if (array->size == array->capacity) {
         array->capacity *= 2;
         array->entries = safe_realloc(array->entries, array->capacity,
@@ -568,7 +568,7 @@ void json_array_insert(json_array_t *array, const json_entry_t *entry) {
     array->size++;
 }
 
-void json_array_remove(json_array_t *array, size_t index) {
+void json_remove_array_entry(json_array_t *array, size_t index) {
     if (index >= array->size) {
         fprintf(stderr, "json: array out of bounds");
         return;

@@ -49,10 +49,10 @@ json_entry_t *json_create_number(long double);
 json_entry_t *json_create_bool(bool);
 json_entry_t *json_create_null();
 
-void json_obj_insert(json_obj_t *, const char *, size_t, json_entry_t *);
-void json_obj_remove(json_obj_t *, const char *);
-void json_array_insert(json_array_t *, const json_entry_t *);
-void json_array_remove(json_array_t *, size_t);
+void json_insert_obj_entry(json_obj_t *, const char *, size_t, json_entry_t *);
+void json_remove_obj_entry(json_obj_t *, const char *);
+void json_insert_array_entry(json_array_t *, const json_entry_t *);
+void json_remove_array_entry(json_array_t *, size_t);
 void json_nullify_entry(json_entry_t *);
 
 #endif // _LIBJSON_H_
