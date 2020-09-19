@@ -544,7 +544,7 @@ json_entry_t *json_create_null() {
     json_entry_t *entry = json_create_generic(NIL, 0);
     entry->item = NULL;
 
-    return NULL;
+    return entry;
 }
 
 void json_insert_obj_entry(json_obj_t *obj, const char *key, size_t len,
