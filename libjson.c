@@ -186,11 +186,13 @@ static json_entry_t *get_value(char outer_end) {
                 if (*s == '"') {
                     key_start = (s + sizeof(char));
                     if (!validate_string()) {
+                        // invalid key
                         goto FAIL;
                     }
                     key_len = s - key_start - sizeof(char);
                     while (*s != ':') {
                         if (!is_ws(*s)) {
+                            // unexpected character
                             goto FAIL;
                         }
                         s++;
@@ -200,6 +202,7 @@ static json_entry_t *get_value(char outer_end) {
                     inner_end = *s;
                     if (!ent) {
                         if (inner_end != '}') {
+                            // invalid end
                             goto FAIL;
                         }
                         break;
@@ -215,6 +218,7 @@ static json_entry_t *get_value(char outer_end) {
                         s++;
                         break;
                     } else {
+                        // unexpected character
                         goto FAIL;
                     }
                 }
@@ -228,6 +232,7 @@ static json_entry_t *get_value(char outer_end) {
                 json_entry_t *ent = get_value(']');
 
                 if (!ent && inner_end == ',') {
+                    // unexpected end
                     goto FAIL;
                 }
 
@@ -242,6 +247,7 @@ static json_entry_t *get_value(char outer_end) {
                 } else if (*s == ',') {
                     inner_end = ',';
                 } else {
+                    // unexpected character
                     goto FAIL;
                 }
             }
@@ -251,6 +257,7 @@ static json_entry_t *get_value(char outer_end) {
             if (validate_string()) {
                 entry = json_create_string(start, s - start - sizeof(char));
             } else {
+                // invalid string
                 goto FAIL;
             }
             break;
@@ -269,21 +276,23 @@ static json_entry_t *get_value(char outer_end) {
                 if (ld) {
                     entry = json_create_generic(NUMBER, sizeof(long double));
                     entry->item = ld;
+                } else {
+                    // no match
+                    return NULL;
                 }
             }
     }
 
-    if (entry) {
-        while (*s) {
-            if (!is_ws(*s)) {
-                if (!outer_end) {
-                    goto FAIL;
-                } else {
-                    break;
-                }
+    while (*s) {
+        if (!is_ws(*s)) {
+            if (!outer_end) {
+                // invalid end
+                goto FAIL;
+            } else {
+                break;
             }
-            s++;
         }
+        s++;
     }
 
     return entry;
