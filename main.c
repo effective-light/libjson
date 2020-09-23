@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "libjson.h"
 
@@ -11,18 +12,22 @@ static void print_diff(char *msg, struct timespec start, struct timespec end) {
 }
 
 int main() {
-    char c;
     size_t size = 0;
     size_t capacity = 1024;
+    ssize_t ret;
 
     char *json = safe_malloc(capacity * sizeof(char));
-    while ((c = getchar()) != EOF) {
-        if (capacity < size + 1) {
-            capacity *= 2;
-            json = realloc(json, capacity * sizeof(char));
+    while ((ret = read(STDIN_FILENO, (json + size), capacity - size)) != 0) {
+        if (ret == -1) {
+            free(json);
+            perror("read");
+            return 1;
         }
-        json[size] = c;
-        size++;
+
+        size += ret;
+        if (capacity == size) {
+            json = realloc(json, (capacity *= 2) * sizeof(char));
+        }
     }
     json[size] = '\0';
 
