@@ -10,9 +10,13 @@
 
 #define SHRINK_FACTOR 0.30f
 
+#define print_error(msg) fprintf(stderr, "%s: %c (index %d)\n",\
+        msg, *s, s - orig);
+
 static const size_t DEFAULT_NUMBER_LENGTH =
     ((size_t) ceill(log10l(powl(2.0L, sizeof(long double) * 8 - 1)))) + 2;
 
+static _Thread_local const char *orig;
 static _Thread_local const char *s;
 
 static bool is_ws(char c) {
@@ -65,6 +69,7 @@ static bool validate_string() {
             if (validate_escape()) {
                 continue;
             } else {
+                print_error("Invalid escape");
                 return false;
             }
         }
@@ -79,6 +84,7 @@ static bool validate_string() {
             case '\v':
             case 0x1A:
             case 0x1B:
+                print_error("Invalid character")
                 return false;
         }
 
@@ -89,6 +95,8 @@ static bool validate_string() {
 
         s++;
     }
+
+    print_error("String doesn't terminate");
 
     return false;
 }
@@ -186,13 +194,12 @@ static json_entry_t *get_value(char outer_end) {
                 if (*s == '"') {
                     key_start = (s + sizeof(char));
                     if (!validate_string()) {
-                        // invalid key
                         goto FAIL;
                     }
                     key_len = s - key_start - sizeof(char);
                     while (*s != ':') {
                         if (!is_ws(*s)) {
-                            // unexpected character
+                            print_error("Unexpected character before ':'");
                             goto FAIL;
                         }
                         s++;
@@ -202,7 +209,7 @@ static json_entry_t *get_value(char outer_end) {
                     inner_end = *s;
                     if (!ent) {
                         if (inner_end != '}') {
-                            // invalid end
+                            print_error("Invalid end");
                             goto FAIL;
                         }
                         break;
@@ -218,7 +225,7 @@ static json_entry_t *get_value(char outer_end) {
                         s++;
                         break;
                     } else {
-                        // unexpected character
+                        print_error("Unexpected character");
                         goto FAIL;
                     }
                 }
@@ -232,7 +239,7 @@ static json_entry_t *get_value(char outer_end) {
                 json_entry_t *ent = get_value(']');
 
                 if (!ent && inner_end == ',') {
-                    // unexpected end
+                    print_error("Unexpected end");
                     goto FAIL;
                 }
 
@@ -247,7 +254,7 @@ static json_entry_t *get_value(char outer_end) {
                 } else if (*s == ',') {
                     inner_end = ',';
                 } else {
-                    // unexpected character
+                    print_error("Unexpected character");
                     goto FAIL;
                 }
             }
@@ -257,7 +264,6 @@ static json_entry_t *get_value(char outer_end) {
             if (validate_string()) {
                 entry = json_create_string(start, s - start - sizeof(char));
             } else {
-                // invalid string
                 goto FAIL;
             }
             break;
@@ -277,7 +283,7 @@ static json_entry_t *get_value(char outer_end) {
                     entry = json_create_generic(NUMBER, sizeof(long double));
                     entry->item = ld;
                 } else {
-                    // no match
+                    print_error("No match");
                     return NULL;
                 }
             }
@@ -286,7 +292,7 @@ static json_entry_t *get_value(char outer_end) {
     while (*s) {
         if (!is_ws(*s)) {
             if (!outer_end) {
-                // invalid end
+                print_error("Invalid end");
                 goto FAIL;
             } else {
                 break;
@@ -303,6 +309,7 @@ FAIL:
 }
 
 json_entry_t *json_parse(const char *json) {
+    orig = json;
     s = json;
     json_entry_t *entry = get_value('\0');
 
