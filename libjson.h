@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: LGPL-3.0-or-later */
+
 #ifndef _LIBJSON_H_
 #define _LIBJSON_H_
 

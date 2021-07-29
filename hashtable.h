@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: LGPL-3.0-or-later */
+
 #ifndef _HASHTABLE_H_
 #define _HASHTABLE_H_
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
 FLAGS = -Wextra -O2 -std=gnu99 -lm -fpic
 
 main: main.o hashtable.o libjson.o

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+
 #include <ctype.h>
 #include <float.h>
 #include <math.h>
